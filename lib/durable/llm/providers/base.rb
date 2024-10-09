@@ -12,6 +12,7 @@ module Durable
           @api_key = api_key || default_api_key
         end
 
+
         def completion(options)
           raise NotImplementedError, "Subclasses must implement completion"
         end
