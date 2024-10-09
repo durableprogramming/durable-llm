@@ -1,0 +1,33 @@
+.DS_Store
+*.gem
+*.rbc
+*.bak
+/.config
+/coverage/
+/InstalledFiles
+/pkg/
+/spec/reports/
+/spec/examples.txt
+/test/tmp/
+/test/version_tmp/
+/tmp/
+
+# Used by dotenv library to load environment variables.
+.env
+
+# Ignore Byebug command history file.
+.byebug_history
+
+## Documentation cache and generated files:
+/.yardoc/
+/_yardoc/
+/doc/
+/rdoc/
+
+## Environment normalization:
+/.bundle/
+/vendor/bundle
+/lib/bundler/man/
+
+# Used by RuboCop. Remote config files pulled in from inherit_from directive.
+.rubocop-https?--*

@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require 'thor'
+require 'durable/llm'
+require 'durable/llm/cli'
+require 'durable/llm/providers'
+
+Durable::Llm::Providers.load_all
+Durable::Llm.configuration.load_from_datasette
+
+Durable::Llm::CLI.start(ARGV)
