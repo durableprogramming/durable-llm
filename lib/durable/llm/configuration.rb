@@ -8,6 +8,7 @@ module Durable
 
       def initialize
         @providers = {}
+        @default_provider = 'openai'
         load_from_env
 
       end

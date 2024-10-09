@@ -1,8 +1,8 @@
 PATH
   remote: .
   specs:
-    durable-llm (0.1.0)
-      faraday (~> 2.0)
+    durable-llm (0.1.1)
+      faraday (> 1.0)
       highline (~> 3.1)
       json (~> 2.6)
       thor (~> 1.3)

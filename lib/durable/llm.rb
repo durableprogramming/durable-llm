@@ -1,8 +1,11 @@
-require 'zeitwerk'
-loader = Zeitwerk::Loader.for_gem
-loader.setup
+require "zeitwerk"
+loader = Zeitwerk::Loader.new
+loader.tag = File.basename(__FILE__, ".rb")
+loader.inflector = Zeitwerk::GemInflector.new(__FILE__)
+loader.push_dir(File.dirname(__FILE__) + '/..' )
 
 require 'durable/llm/configuration'
+
 module Durable
   module Llm
     class << self
@@ -21,3 +24,4 @@ end
 
 Durable::Llm.configure do
 end
+

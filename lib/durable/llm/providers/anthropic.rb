@@ -18,6 +18,7 @@ module Durable
 
         def initialize(api_key: nil)
           @api_key = api_key || default_api_key
+
           @conn = Faraday.new(url: BASE_URL) do |faraday|
             faraday.request :json
             faraday.response :json
@@ -26,7 +27,8 @@ module Durable
         end
 
         def completion(options)
-          response = @conn.post('/v1/chat/completions') do |req|
+          options['max_tokens'] ||=1024
+          response = @conn.post('/v1/messages') do |req|
             req.headers['x-api-key'] = @api_key
             req.headers['anthropic-version'] = '2023-06-01'
             req.body = options
@@ -39,7 +41,7 @@ module Durable
           self.class.models
         end
         def self.models
-          ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku', 'claude-2.1', 'claude-2.0', 'claude-instant-1.2']
+          ['claude-3-5-sonnet-20240620', 'claude-3-opus-20240229', 'claude-3-haiku-20240307']
         end
 
         def self.stream?
@@ -47,7 +49,7 @@ module Durable
         end
         def stream(options, &block)
           options[:stream] = true
-          response = @conn.post('/v1/chat/completions') do |req|
+          response = @conn.post('/v1/messages') do |req|
             req.headers['x-api-key'] = @api_key
             req.headers['anthropic-version'] = '2023-06-01'
             req.headers['Accept'] = 'text/event-stream'
