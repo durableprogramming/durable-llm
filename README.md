@@ -52,9 +52,8 @@ puts response.choices.first.message.content
 
 - OpenAI
 - Anthropic
-- Cohere
-- AI21
-- (More providers to be added)
+- Grok
+- Huggingface
 
 ## Configuration
 
