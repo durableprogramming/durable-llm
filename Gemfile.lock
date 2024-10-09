@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     durable-llm (0.1.1)
+      event_stream_parser (~> 1.0)
       faraday (> 1.0)
       highline (~> 3.1)
       json (~> 2.6)

@@ -32,6 +32,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "thor", "~> 1.3"
   spec.add_dependency "zeitwerk", "~> 2.6"
   spec.add_dependency "highline", "~> 3.1"
+  spec.add_dependency "event_stream_parser", "~> 1.0"
 
   spec.add_development_dependency "minitest", "~> 5.0"
   spec.add_development_dependency "mocha", "~> 2.1"

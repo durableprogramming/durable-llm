@@ -87,6 +87,8 @@ end
 
 Thank you to the lite-llm and llm.datasette.io projects for their hard work, which was invaluable to this project. The dllm command line tool is patterned after the llm tool, though not as full-featured (yet).
 
+The streaming jsonl code is from the ruby-openai repo; many thanks for their hard work.
+
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/durableprogramming/durable-llm.
