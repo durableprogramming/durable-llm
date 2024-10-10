@@ -75,7 +75,7 @@ class TestProviderOpenAI < Minitest::Test
     ]
 
     stub_request(:post, "https://api.openai.com/v1/chat/completions")
-      .to_return(status: 200, body: chunks.map(&:to_json).join("\n"), headers: { 'Content-Type' => 'text/event-stream' })
+      .to_return(status: 200, body: chunks.map { |chunk| "data: #{chunk.to_json}\n\n" }.join + "data: [DONE]\n\n", headers: { 'Content-Type' => 'text/event-stream' })
 
     streamed_response = ''
     @provider.stream(model: 'gpt-3.5-turbo', messages: [{ role: 'user', content: 'Hello' }]) do |chunk|

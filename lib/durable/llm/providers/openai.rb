@@ -81,7 +81,6 @@ module Durable
 
             user_proc = Proc.new do |chunk, size, total|
 
-
               yield OpenAIStreamResponse.new(chunk)
 
             end
