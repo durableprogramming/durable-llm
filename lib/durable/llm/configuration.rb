@@ -13,6 +13,10 @@ module Durable
 
       end
 
+      def clear
+        @providers.clear
+        @default_provider = 'openai'
+      end
       def load_from_datasette
 
         config_file = File.expand_path('~/.config/io.datasette.llm/keys.json')

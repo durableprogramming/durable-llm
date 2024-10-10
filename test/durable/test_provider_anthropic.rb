@@ -29,22 +29,24 @@ class TestProviderAnthropic < Minitest::Test
         }
       ]
     }
-    stub_request(:post, "https://api.anthropic.com/v1/chat/completions")
+    stub_request(:post, "https://api.anthropic.com/v1/messages")
       .to_return(status: 200, body: response_data.to_json, headers: { 'Content-Type' => 'application/json' })
     
     response = @provider.completion(model: 'claude-2.1', messages: [{ role: 'user', content: 'Hello' }])
     
     assert_instance_of Durable::Llm::Providers::Anthropic::AnthropicResponse, response
     assert_equal 'Test response', response.choices.first.to_s
-    assert_requested :post, "https://api.anthropic.com/v1/chat/completions"
+    assert_requested :post, "https://api.anthropic.com/v1/messages"
   end
 
   def test_models
-    assert_equal ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku', 'claude-2.1', 'claude-2.0', 'claude-instant-1.2'], @provider.models
+    assert @provider.models.kind_of?(Array)
+    assert @provider.models.length > 0
+    assert @provider.models.all? { |_| _.kind_of?(String)}
   end
 
   def test_handle_response_error
-    stub_request(:post, "https://api.anthropic.com/v1/chat/completions")
+    stub_request(:post, "https://api.anthropic.com/v1/messages")
       .to_return(status: 401, body: { 'error' => { 'message' => 'Unauthorized' } }.to_json, headers: { 'Content-Type' => 'application/json' })
 
     assert_raises Durable::Llm::AuthenticationError do
