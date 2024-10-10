@@ -55,9 +55,6 @@ module Durable
           handle_response(response).data.map { |model| model['id'] }
         end
 
-        def self.models
-          self.new.models 
-        end
 
         def self.stream?
           true

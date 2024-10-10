@@ -18,7 +18,7 @@ module Durable
       option :no_stream, type: :boolean, desc: "Disable streaming of tokens"
       option :option, aliases: "-o", type: :hash, desc: "Set model-specific options"
 
-      def prompt(prompt)
+      def prompt(*prompt)
         config = Durable::Llm.configuration
         model = options[:model] || "gpt-3.5-turbo"
         provider_class = Durable::Llm::Providers.model_id_to_provider(model)
@@ -32,7 +32,7 @@ module Durable
         
         messages = []
         messages << { role: "system", content: options[:system] } if options[:system]
-        messages << { role: "user", content: prompt }
+        messages << { role: "user", content: prompt.join(" ") }
 
         params = {
           model: model,
@@ -40,7 +40,7 @@ module Durable
         }
         params.merge!(options[:option]) if options[:option]
 
-        if options[:no_stream] 
+        if options[:no_stream] || !client.stream?
           response = client.completion(params)
           puts response.choices.first.to_s
         else
@@ -109,7 +109,7 @@ module Durable
         
         Durable::Llm::Providers.providers.each do |provider_name|
           provider_class = Durable::Llm::Providers.const_get(provider_name.to_s.capitalize)
-          provider_models = provider_class.new.models
+          provider_models = provider_class.models
           
           cli.say("#{provider_name.to_s.capitalize}:")
           provider_models.each do |model|

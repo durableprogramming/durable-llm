@@ -43,6 +43,9 @@ module Durable
         @provider.stream(process_params(params), &block)
       end
 
+      def stream?
+        @provider.stream?
+      end
       private
 
       def process_params(opts = {})

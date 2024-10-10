@@ -59,9 +59,6 @@ module Durable
 
           resp['data'].map { |model| model['id'] }
         end
-        def self.models
-          Groq.new.models
-        end
 
         def self.stream?
           false
