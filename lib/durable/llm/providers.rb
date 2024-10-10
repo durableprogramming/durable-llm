@@ -9,15 +9,13 @@ module Durable
       end
 
       def self.providers
+        @provider_list ||= constants.select do |const_name|
+          const = const_get(const_name)
+          last_component = const.name.split('::').last
+          next if last_component == 'Base'
 
-        @provider_list ||= begin
-                             constants.select do |const_name|
-                               const = const_get(const_name)
-                               last_component = const.name.split('::').last
-                               next if last_component == 'Base'
-                               const.is_a?(Class) && const.to_s.split('::').last.to_s == const_name.to_s
-                             end.map(&:to_s).map(&:downcase).map(&:to_sym)
-                           end
+          const.is_a?(Class) && const.to_s.split('::').last.to_s == const_name.to_s
+        end.map(&:to_s).map(&:downcase).map(&:to_sym)
       end
 
       def self.model_ids

@@ -29,24 +29,24 @@ class TestProviderAnthropic < Minitest::Test
         }
       ]
     }
-    stub_request(:post, "https://api.anthropic.com/v1/messages")
+    stub_request(:post, 'https://api.anthropic.com/v1/messages')
       .to_return(status: 200, body: response_data.to_json, headers: { 'Content-Type' => 'application/json' })
-    
+
     response = @provider.completion(model: 'claude-2.1', messages: [{ role: 'user', content: 'Hello' }])
-    
+
     assert_instance_of Durable::Llm::Providers::Anthropic::AnthropicResponse, response
     assert_equal 'Test response', response.choices.first.to_s
-    assert_requested :post, "https://api.anthropic.com/v1/messages"
+    assert_requested :post, 'https://api.anthropic.com/v1/messages'
   end
 
   def test_models
-    assert @provider.models.kind_of?(Array)
+    assert @provider.models.is_a?(Array)
     assert @provider.models.length > 0
-    assert @provider.models.all? { |_| _.kind_of?(String)}
+    assert(@provider.models.all? { |_| _.is_a?(String) })
   end
 
   def test_handle_response_error
-    stub_request(:post, "https://api.anthropic.com/v1/messages")
+    stub_request(:post, 'https://api.anthropic.com/v1/messages')
       .to_return(status: 401, body: { 'error' => { 'message' => 'Unauthorized' } }.to_json, headers: { 'Content-Type' => 'application/json' })
 
     assert_raises Durable::Llm::AuthenticationError do

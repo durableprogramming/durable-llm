@@ -3,7 +3,7 @@ module Durable
     module Providers
       class Base
         def default_api_key
-          raise NotImplementedError, "Subclasses must implement default_api_key"
+          raise NotImplementedError, 'Subclasses must implement default_api_key'
         end
 
         attr_accessor :api_key
@@ -13,31 +13,29 @@ module Durable
         end
 
         def completion(options)
-          raise NotImplementedError, "Subclasses must implement completion"
+          raise NotImplementedError, 'Subclasses must implement completion'
         end
 
         def self.models
           cache_dir = File.expand_path("#{Dir.home}/.local/durable-llm/cache")
 
           FileUtils.mkdir_p(cache_dir) unless File.directory?(cache_dir)
-          cache_file = File.join(cache_dir, "#{self.name.split('::').last}.json")
+          cache_file = File.join(cache_dir, "#{name.split('::').last}.json")
 
-          file_exists = File.exist?(cache_file) 
+          file_exists = File.exist?(cache_file)
           file_new_enough = file_exists && File.mtime(cache_file) > Time.now - 3600
 
-          if file_exists && file_new_enough 
+          if file_exists && file_new_enough
             JSON.parse(File.read(cache_file))
           else
-            models = self.new.models
-            if models.length > 0
-              File.write(cache_file, JSON.generate(models))
-            end
+            models = new.models
+            File.write(cache_file, JSON.generate(models)) if models.length > 0
             models
           end
         end
 
         def models
-          raise NotImplementedError, "Subclasses must implement models"
+          raise NotImplementedError, 'Subclasses must implement models'
         end
 
         def self.stream?
@@ -49,17 +47,17 @@ module Durable
         end
 
         def stream(options, &block)
-          raise NotImplementedError, "Subclasses must implement stream"
+          raise NotImplementedError, 'Subclasses must implement stream'
         end
 
         def embedding(model:, input:, **options)
-          raise NotImplementedError, "Subclasses must implement embedding"
+          raise NotImplementedError, 'Subclasses must implement embedding'
         end
 
         private
 
         def handle_response(response)
-          raise NotImplementedError, "Subclasses must implement handle_response"
+          raise NotImplementedError, 'Subclasses must implement handle_response'
         end
       end
     end

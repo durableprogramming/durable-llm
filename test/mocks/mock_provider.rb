@@ -8,27 +8,27 @@ module Durable
           'mock_api_key'
         end
 
-        def completion(options)
+        def completion(_options)
           MockResponse.new({ 'choices' => [{ 'message' => { 'content' => 'Mock completion response' } }] })
         end
 
         def models
-          ['mock-model-1', 'mock-model-2']
+          %w[mock-model-1 mock-model-2]
         end
 
         def self.models
-          ['mock-model-1', 'mock-model-2']
+          %w[mock-model-1 mock-model-2]
         end
 
         def self.stream?
           true
         end
 
-        def stream(options, &block)
-          yield MockStreamResponse.new("Mock stream response")
+        def stream(_options)
+          yield MockStreamResponse.new('Mock stream response')
         end
 
-        def embedding(model:, input:, **options)
+        def embedding(model:, input:, **_options)
           MockEmbeddingResponse.new({ 'data' => [{ 'embedding' => [0.1, 0.2, 0.3] }] })
         end
 
@@ -39,13 +39,13 @@ module Durable
           when 200..299
             MockResponse.new(response.body)
           when 401
-            raise Durable::Llm::AuthenticationError, "Mock authentication error"
+            raise Durable::Llm::AuthenticationError, 'Mock authentication error'
           when 429
-            raise Durable::Llm::RateLimitError, "Mock rate limit error"
+            raise Durable::Llm::RateLimitError, 'Mock rate limit error'
           when 400..499
-            raise Durable::Llm::InvalidRequestError, "Mock invalid request error"
+            raise Durable::Llm::InvalidRequestError, 'Mock invalid request error'
           when 500..599
-            raise Durable::Llm::ServerError, "Mock server error"
+            raise Durable::Llm::ServerError, 'Mock server error'
           else
             raise Durable::Llm::APIError, "Mock unexpected response code: #{response.status}"
           end

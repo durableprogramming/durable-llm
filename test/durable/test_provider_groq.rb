@@ -20,7 +20,7 @@ class TestProviderGroq < Minitest::Test
   end
 
   def test_completion
-    stub_request(:post, "https://api.groq.com/openai/v1/chat/completions")
+    stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions')
       .to_return(status: 200, body: {
         choices: [
           {
@@ -39,7 +39,7 @@ class TestProviderGroq < Minitest::Test
   end
 
   def test_embedding
-    stub_request(:post, "https://api.groq.com/openai/v1/embeddings")
+    stub_request(:post, 'https://api.groq.com/openai/v1/embeddings')
       .to_return(status: 200, body: {
         data: [
           { embedding: [0.1, 0.2, 0.3] }
@@ -53,7 +53,7 @@ class TestProviderGroq < Minitest::Test
   end
 
   def test_models
-    stub_request(:get, "https://api.groq.com/openai/v1/models")
+    stub_request(:get, 'https://api.groq.com/openai/v1/models')
       .to_return(status: 200, body: {
         data: [
           { id: 'mixtral-8x7b-32768' },
@@ -68,7 +68,7 @@ class TestProviderGroq < Minitest::Test
   end
 
   def test_handle_response_error
-    stub_request(:post, "https://api.groq.com/openai/v1/chat/completions")
+    stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions')
       .to_return(status: 401, body: { error: { message: 'Unauthorized' } }.to_json, headers: { 'Content-Type' => 'application/json' })
 
     assert_raises Durable::Llm::AuthenticationError do

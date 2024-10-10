@@ -1,4 +1,3 @@
-
 require 'faraday'
 require 'json'
 require 'durable/llm/errors'
@@ -27,7 +26,7 @@ module Durable
         end
 
         def completion(options)
-          options['max_tokens'] ||=1024
+          options['max_tokens'] ||= 1024
           response = @conn.post('/v1/messages') do |req|
             req.headers['x-api-key'] = @api_key
             req.headers['anthropic-version'] = '2023-06-01'
@@ -40,6 +39,7 @@ module Durable
         def models
           self.class.models
         end
+
         def self.models
           ['claude-3-5-sonnet-20240620', 'claude-3-opus-20240229', 'claude-3-haiku-20240307']
         end
@@ -47,15 +47,17 @@ module Durable
         def self.stream?
           true
         end
-        def stream(options, &block)
+
+        def stream(options)
           options[:stream] = true
           response = @conn.post('/v1/messages') do |req|
             req.headers['x-api-key'] = @api_key
             req.headers['anthropic-version'] = '2023-06-01'
             req.headers['Accept'] = 'text/event-stream'
             req.body = options
-            req.options.on_data = Proc.new do |chunk, size, total|
+            req.options.on_data = proc do |chunk, _size, _total|
               next if chunk.strip.empty?
+
               yield AnthropicStreamResponse.new(chunk) if chunk.start_with?('data: ')
             end
           end
@@ -66,20 +68,20 @@ module Durable
         private
 
         def handle_response(response)
-              case response.status
-              when 200..299
-                AnthropicResponse.new(response.body)
-              when 401
-                raise Durable::Llm::AuthenticationError, response.body.dig('error', 'message')
-              when 429
-                raise Durable::Llm::RateLimitError, response.body.dig('error', 'message')
-              when 400..499
-                raise Durable::Llm::InvalidRequestError, response.body.dig('error', 'message')
-              when 500..599
-                raise Durable::Llm::ServerError, response.body.dig('error', 'message')
-              else
-                raise Durable::Llm::APIError, "Unexpected response code: #{response.status}"
-              end
+          case response.status
+          when 200..299
+            AnthropicResponse.new(response.body)
+          when 401
+            raise Durable::Llm::AuthenticationError, response.body.dig('error', 'message')
+          when 429
+            raise Durable::Llm::RateLimitError, response.body.dig('error', 'message')
+          when 400..499
+            raise Durable::Llm::InvalidRequestError, response.body.dig('error', 'message')
+          when 500..599
+            raise Durable::Llm::ServerError, response.body.dig('error', 'message')
+          else
+            raise Durable::Llm::APIError, "Unexpected response code: #{response.status}"
+          end
         end
 
         class AnthropicResponse
@@ -114,8 +116,8 @@ module Durable
           attr_reader :role, :content
 
           def initialize(content)
-            @role = [content].flatten.map { |_| _['type']}.join(' ')
-            @content = [content].flatten.map { |_| _['text']}.join(' ')
+            @role = [content].flatten.map { |_| _['type'] }.join(' ')
+            @content = [content].flatten.map { |_| _['text'] }.join(' ')
           end
 
           def to_s
@@ -127,7 +129,7 @@ module Durable
           attr_reader :choices
 
           def initialize(fragment)
-            parsed = JSON.parse(fragment.split("data: ").last)
+            parsed = JSON.parse(fragment.split('data: ').last)
             @choices = [AnthropicStreamChoice.new(parsed['delta'])]
           end
 

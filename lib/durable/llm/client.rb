@@ -8,10 +8,7 @@ module Durable
       attr_accessor :model
 
       def initialize(provider_name, options = {})
-
-        if options['model'] || options[:model]
-          @model = options.delete('model') || options.delete(:model)
-        end
+        @model = options.delete('model') || options.delete(:model) if options['model'] || options[:model]
 
         provider_class = Durable::Llm::Providers.const_get(provider_name.to_s.capitalize)
 
@@ -21,12 +18,13 @@ module Durable
       def default_params
         { model: @model }
       end
-      def quick_complete(text, opts = {})
 
-        response = completion(process_params(messages:[{role: 'user', content: text}]))
+      def quick_complete(text, _opts = {})
+        response = completion(process_params(messages: [{ role: 'user', content: text }]))
 
         response.choices.first.message.content
       end
+
       def completion(params = {})
         @provider.completion(process_params(params))
       end
@@ -46,6 +44,7 @@ module Durable
       def stream?
         @provider.stream?
       end
+
       private
 
       def process_params(opts = {})

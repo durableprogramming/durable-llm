@@ -21,27 +21,27 @@ class TestCLI < Minitest::Test
   def test_prompt
     mock_client = Durable::Llm::Providers::MockProvider.new
     Durable::Llm::Client.stubs(:new).returns(mock_client)
-    
+
     out, err = capture_io do
-      @cli.prompt("Test prompt")
+      @cli.prompt('Test prompt')
     end
-    
-    assert_equal "Mock stream response", out.strip
+
+    assert_equal 'Mock stream response', out.strip
     assert_empty err
   end
 
   def test_chat
     mock_client = Durable::Llm::Providers::MockProvider.new
     Durable::Llm::Client.stubs(:new).returns(mock_client)
-    
-    HighLine.any_instance.stubs(:ask).returns("Test input", "exit")
-    
+
+    HighLine.any_instance.stubs(:ask).returns('Test input', 'exit')
+
     out, err = capture_io do
       @cli.chat
     end
-    
-    assert_includes out, "Chatting with gpt-3.5-turbo"
-    assert_includes out, "Mock completion response"
+
+    assert_includes out, 'Chatting with gpt-3.5-turbo'
+    assert_includes out, 'Mock completion response'
     assert_empty err
   end
 
@@ -49,11 +49,11 @@ class TestCLI < Minitest::Test
     out, err = capture_io do
       @cli.models
     end
-    
-    assert_includes out, "Available models:"
-    assert_includes out, "Mock:"
-    assert_includes out, "mock-model-1"
-    assert_includes out, "mock-model-2"
+
+    assert_includes out, 'Available models:'
+    assert_includes out, 'Mock:'
+    assert_includes out, 'mock-model-1'
+    assert_includes out, 'mock-model-2'
     assert_empty err
   end
 end

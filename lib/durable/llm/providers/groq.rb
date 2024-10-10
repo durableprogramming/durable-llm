@@ -22,6 +22,7 @@ module Durable
             faraday.adapter Faraday.default_adapter
           end
         end
+
         def conn
           self.class.conn
         end
@@ -49,8 +50,6 @@ module Durable
         end
 
         def models
-
-
           response = conn.get('models') do |req|
             req.headers['Authorization'] = "Bearer #{@api_key}"
           end
@@ -97,6 +96,7 @@ module Durable
           def to_s
             choices.map(&:to_s).join(' ')
           end
+
           def to_h
             @raw_response.dup
           end
@@ -132,7 +132,7 @@ module Durable
           attr_reader :choices
 
           def initialize(fragment)
-            json_frag = fragment.split("data: ").last.strip
+            json_frag = fragment.split('data: ').last.strip
             puts json_frag
             parsed = JSON.parse(json_frag)
             @choices = parsed['choices'].map { |choice| GroqStreamChoice.new(choice) }

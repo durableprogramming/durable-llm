@@ -26,9 +26,8 @@ class TestLlm < Minitest::Test
   end
 
   def test_load_from_env
-
-    old=ENV['DLLM__OPENAI__API_KEY']
-    ENV['DLLM__OPENAI__API_KEY']='test_key'
+    old = ENV['DLLM__OPENAI__API_KEY']
+    ENV['DLLM__OPENAI__API_KEY'] = 'test_key'
 
     config = Durable::Llm::Configuration.new
 
@@ -50,7 +49,7 @@ class TestLlm < Minitest::Test
   end
 
   def test_providers
-    Durable::Llm::Providers.stubs(:providers).returns([:openai, :anthropic])
+    Durable::Llm::Providers.stubs(:providers).returns(%i[openai anthropic])
     providers = Durable::Llm::Providers.providers
     assert_includes providers, :openai
     assert_includes providers, :anthropic

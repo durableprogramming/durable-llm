@@ -20,7 +20,7 @@ class TestProviderOpenAI < Minitest::Test
   end
 
   def test_completion
-    stub_request(:post, "https://api.openai.com/v1/chat/completions")
+    stub_request(:post, 'https://api.openai.com/v1/chat/completions')
       .to_return(status: 200, body: {
         choices: [
           {
@@ -39,7 +39,7 @@ class TestProviderOpenAI < Minitest::Test
   end
 
   def test_embedding
-    stub_request(:post, "https://api.openai.com/v1/embeddings")
+    stub_request(:post, 'https://api.openai.com/v1/embeddings')
       .to_return(status: 200, body: {
         data: [
           { embedding: [0.1, 0.2, 0.3] }
@@ -53,7 +53,7 @@ class TestProviderOpenAI < Minitest::Test
   end
 
   def test_models
-    stub_request(:get, "https://api.openai.com/v1/models")
+    stub_request(:get, 'https://api.openai.com/v1/models')
       .to_return(status: 200, body: {
         data: [
           { id: 'gpt-3.5-turbo' },
@@ -74,8 +74,10 @@ class TestProviderOpenAI < Minitest::Test
       { choices: [{ delta: { content: '!' } }] }
     ]
 
-    stub_request(:post, "https://api.openai.com/v1/chat/completions")
-      .to_return(status: 200, body: chunks.map { |chunk| "data: #{chunk.to_json}\n\n" }.join + "data: [DONE]\n\n", headers: { 'Content-Type' => 'text/event-stream' })
+    stub_request(:post, 'https://api.openai.com/v1/chat/completions')
+      .to_return(status: 200, body: chunks.map { |chunk|
+                   "data: #{chunk.to_json}\n\n"
+                 }.join + "data: [DONE]\n\n", headers: { 'Content-Type' => 'text/event-stream' })
 
     streamed_response = ''
     @provider.stream(model: 'gpt-3.5-turbo', messages: [{ role: 'user', content: 'Hello' }]) do |chunk|
@@ -86,7 +88,7 @@ class TestProviderOpenAI < Minitest::Test
   end
 
   def test_handle_response_error
-    stub_request(:post, "https://api.openai.com/v1/chat/completions")
+    stub_request(:post, 'https://api.openai.com/v1/chat/completions')
       .to_return(status: 401, body: { error: { message: 'Unauthorized' } }.to_json, headers: { 'Content-Type' => 'application/json' })
 
     assert_raises Durable::Llm::AuthenticationError do

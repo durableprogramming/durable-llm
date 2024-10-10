@@ -55,35 +55,27 @@ module Durable
           handle_response(response).data.map { |model| model['id'] }
         end
 
-
         def self.stream?
           true
         end
 
-        def stream(options, &block)
-
+        def stream(options)
           options[:stream] = true
 
           response = @conn.post('chat/completions') do |req|
-
             req.headers['Authorization'] = "Bearer #{@api_key}"
             req.headers['OpenAI-Organization'] = @organization if @organization
             req.headers['Accept'] = 'text/event-stream'
 
-            if options['temperature']
-              options['temperature'] = options['temperature'].to_f
-            end
+            options['temperature'] = options['temperature'].to_f if options['temperature']
 
             req.body = options
 
-            user_proc = Proc.new do |chunk, size, total|
-
+            user_proc = proc do |chunk, _size, _total|
               yield OpenAIStreamResponse.new(chunk)
-
             end
 
-            req.options.on_data = to_json_stream( user_proc: user_proc )
-
+            req.options.on_data = to_json_stream(user_proc: user_proc)
           end
 
           handle_response(response)
@@ -109,7 +101,7 @@ module Durable
             end
 
             parser.feed(chunk) do |_type, data|
-              user_proc.call(JSON.parse(data)) unless data == "[DONE]"
+              user_proc.call(JSON.parse(data)) unless data == '[DONE]'
             end
           end
         end
@@ -121,8 +113,8 @@ module Durable
         end
 
         # END-CODE-FROM
-        
-        def handle_response(response, responseClass=OpenAIResponse)
+
+        def handle_response(response, responseClass = OpenAIResponse)
           case response.status
           when 200..299
             responseClass.new(response.body)
@@ -140,7 +132,11 @@ module Durable
         end
 
         def parse_error_message(response)
-          body = JSON.parse(response.body) rescue nil
+          body = begin
+            JSON.parse(response.body)
+          rescue StandardError
+            nil
+          end
           message = body&.dig('error', 'message') || response.body
           "#{response.status} Error: #{message}"
         end
@@ -199,8 +195,7 @@ module Durable
           attr_reader :choices
 
           def initialize(parsed)
-
-            @choices =  OpenAIStreamChoice.new(parsed['choices'])
+            @choices = OpenAIStreamChoice.new(parsed['choices'])
           end
 
           def to_s
