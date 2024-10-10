@@ -54,6 +54,7 @@ puts response.choices.first.message.content
 - Anthropic
 - Grok
 - Huggingface
+- Cohere 
 
 ## Configuration
 
