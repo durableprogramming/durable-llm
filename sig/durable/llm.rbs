@@ -1,6 +1,307 @@
 module Durable
   module Llm
     VERSION: String
-    # See the writing guide of rbs: https://github.com/ruby/rbs#guides
+
+    def self.configure: () { (Configuration) -> void } -> void
+    def self.configuration: () -> Configuration
+    def self.config: () -> Configuration
+
+    class Error < StandardError
+    end
+
+    class APIError < Error
+    end
+
+    class RateLimitError < Error
+    end
+
+    class AuthenticationError < Error
+    end
+
+    class InvalidRequestError < Error
+    end
+
+    class ResourceNotFoundError < Error
+    end
+
+    class TimeoutError < Error
+    end
+
+    class ServerError < Error
+    end
+
+    class UnsupportedProviderError < Error
+    end
+
+    class ConfigurationError < Error
+    end
+
+    class ModelNotFoundError < Error
+    end
+
+    class InsufficientQuotaError < Error
+    end
+
+    class InvalidResponseError < Error
+    end
+
+    class NetworkError < Error
+    end
+
+    class StreamingError < Error
+    end
+
+    class Configuration
+      attr_accessor default_provider: String
+      attr_reader providers: Hash[Symbol, untyped]
+
+      def initialize: () -> void
+      def clear: () -> void
+      def load_from_datasette: () -> void
+      def load_from_env: () -> void
+      def method_missing: (Symbol method_name, *untyped args) -> untyped
+      def respond_to_missing?: (Symbol method_name, ?bool include_private) -> bool
+    end
+
+    class Client
+      attr_reader provider: untyped
+      attr_accessor model: String?
+
+      def initialize: (Symbol | String provider_name, ?Hash[Symbol | String, untyped] options) -> void
+      def default_params: () -> Hash[Symbol, String?]
+      def quick_complete: (String text, ?Hash[Symbol, untyped] _opts) -> String
+      def completion: (?Hash[Symbol, untyped] params) -> untyped
+      def chat: (?Hash[Symbol, untyped] params) -> untyped
+      def embed: (?Hash[Symbol, untyped] params) -> untyped
+      def stream: (?Hash[Symbol, untyped] params) { (untyped) -> void } -> untyped
+      def stream?: () -> bool
+
+      private
+      def process_params: (?Hash[Symbol, untyped] opts) -> Hash[Symbol, untyped]
+    end
+
+    module Providers
+      def self.load_all: () -> void
+      def self.providers: () -> Array[Symbol]
+      def self.model_ids: () -> Array[String]
+      def self.model_id_to_provider: (String model_id) -> Class?
+
+      class Base
+        attr_accessor api_key: String?
+
+        def initialize: (?api_key: String?) -> void
+        def default_api_key: () -> String?
+        def completion: (Hash[Symbol | String, untyped] options) -> untyped
+        def self.models: () -> Array[String]
+        def models: () -> Array[String]
+        def self.stream?: () -> bool
+        def stream?: () -> bool
+        def stream: (Hash[Symbol | String, untyped] options) { (untyped) -> void } -> untyped
+        def embedding: (model: String, input: String | Array[String], **untyped options) -> untyped
+
+        private
+        def handle_response: (untyped response) -> untyped
+      end
+
+      class OpenAI < Base
+        BASE_URL: String
+        attr_accessor organization: String?
+
+        def initialize: (?api_key: String?, ?organization: String?) -> void
+        def completion: (Hash[Symbol | String, untyped] options) -> OpenAIResponse
+        def embedding: (model: String, input: String | Array[String], **untyped options) -> OpenAIEmbeddingResponse
+        def models: () -> Array[String]
+        def self.stream?: () -> true
+        def stream: (Hash[Symbol | String, untyped] options) { (OpenAIStreamResponse) -> void } -> void
+
+        class OpenAIResponse
+          attr_reader raw_response: Hash[String, untyped]
+          def initialize: (Hash[String, untyped] response) -> void
+          def choices: () -> Array[OpenAIChoice]
+          def data: () -> untyped
+          def embedding: () -> untyped
+          def to_s: () -> String
+        end
+
+        class OpenAIChoice
+          attr_reader message: OpenAIMessage
+          attr_reader finish_reason: String?
+          def initialize: (Hash[String, untyped] choice) -> void
+          def to_s: () -> String
+        end
+
+        class OpenAIMessage
+          attr_reader role: String
+          attr_reader content: String
+          def initialize: (Hash[String, untyped] message) -> void
+          def to_s: () -> String
+        end
+
+        class OpenAIStreamResponse
+          attr_reader choices: OpenAIStreamChoice
+          def initialize: (Hash[String, untyped] parsed) -> void
+          def to_s: () -> String
+        end
+
+        class OpenAIStreamChoice
+          attr_reader delta: OpenAIStreamDelta
+          attr_reader finish_reason: String?
+          def initialize: (Array[Hash[String, untyped]] | Hash[String, untyped] choice) -> void
+          def to_s: () -> String
+        end
+
+        class OpenAIStreamDelta
+          attr_reader role: String?
+          attr_reader content: String?
+          def initialize: (Hash[String, untyped] delta) -> void
+          def to_s: () -> String
+        end
+
+        class OpenAIEmbeddingResponse
+          attr_reader embedding: Array[Float]
+          def initialize: (Hash[String, untyped] data) -> void
+          def to_a: () -> Array[Float]
+        end
+      end
+
+      class Anthropic < Base
+        BASE_URL: String
+
+        def initialize: (?api_key: String?) -> void
+        def completion: (Hash[Symbol | String, untyped] options) -> AnthropicResponse
+        def models: () -> Array[String]
+        def self.models: () -> Array[String]
+        def self.stream?: () -> true
+        def stream: (Hash[Symbol | String, untyped] options) { (AnthropicStreamResponse) -> void } -> void
+
+        class AnthropicResponse
+          attr_reader raw_response: Hash[String, untyped]
+          def initialize: (Hash[String, untyped] response) -> void
+          def choices: () -> Array[AnthropicChoice]
+          def to_s: () -> String
+        end
+
+        class AnthropicChoice
+          attr_reader message: AnthropicMessage
+          def initialize: (untyped content) -> void
+          def to_s: () -> String
+        end
+
+        class AnthropicMessage
+          attr_reader role: String
+          attr_reader content: String
+          def initialize: (untyped content) -> void
+          def to_s: () -> String
+        end
+
+        class AnthropicStreamResponse
+          attr_reader choices: Array[AnthropicStreamChoice]
+          def initialize: (String fragment) -> void
+          def to_s: () -> String
+        end
+
+        class AnthropicStreamChoice
+          attr_reader delta: AnthropicStreamDelta
+          def initialize: (Hash[String, untyped] delta) -> void
+          def to_s: () -> String
+        end
+
+        class AnthropicStreamDelta
+          attr_reader type: String?
+          attr_reader text: String?
+          def initialize: (Hash[String, untyped] delta) -> void
+          def to_s: () -> String
+        end
+      end
+
+      class Groq < Base
+        BASE_URL: String
+
+        def self.conn: () -> untyped
+        def conn: () -> untyped
+        def initialize: (?api_key: String?) -> void
+        def completion: (Hash[Symbol | String, untyped] options) -> GroqResponse
+        def embedding: (model: String, input: String | Array[String], **untyped options) -> GroqResponse
+        def models: () -> Array[String]
+        def self.stream?: () -> false
+
+        class GroqResponse
+          attr_reader raw_response: Hash[String, untyped]
+          def initialize: (Hash[String, untyped] response) -> void
+          def choices: () -> Array[GroqChoice]
+          def to_s: () -> String
+          def to_h: () -> Hash[String, untyped]
+        end
+
+        class GroqChoice
+          attr_reader message: GroqMessage
+          attr_reader finish_reason: String?
+          def initialize: (Hash[String, untyped] choice) -> void
+          def to_s: () -> String
+        end
+
+        class GroqMessage
+          attr_reader role: String
+          attr_reader content: String
+          def initialize: (Hash[String, untyped] message) -> void
+          def to_s: () -> String
+        end
+      end
+
+      class Huggingface < Base
+        BASE_URL: String
+
+        def initialize: (?api_key: String?) -> void
+        def completion: (Hash[Symbol | String, untyped] options) -> HuggingfaceResponse
+        def models: () -> Array[String]
+        def self.models: () -> Array[String]
+
+        class HuggingfaceResponse
+          attr_reader raw_response: untyped
+          def initialize: (untyped response) -> void
+          def choices: () -> Array[HuggingfaceChoice]
+          def to_s: () -> String
+        end
+
+        class HuggingfaceChoice
+          attr_reader text: String
+          def initialize: (Hash[String, untyped] choice) -> void
+          def to_s: () -> String
+        end
+      end
+
+      class Cohere < Base
+        BASE_URL: String
+
+        def initialize: (?api_key: String?) -> void
+        def completion: (Hash[Symbol | String, untyped] options) -> CohereResponse
+        def models: () -> Array[String]
+        def self.stream?: () -> false
+
+        class CohereResponse
+          attr_reader raw_response: Hash[String, untyped]
+          def initialize: (Hash[String, untyped] response) -> void
+          def choices: () -> Array[CohereChoice]
+          def to_s: () -> String
+        end
+
+        class CohereChoice
+          attr_reader text: String
+          def initialize: (Hash[String, untyped] generation) -> void
+          def to_s: () -> String
+        end
+      end
+
+      Openai: singleton(OpenAI)
+      Claude: singleton(Anthropic)
+      Claude3: singleton(Anthropic)
+    end
+
+    class CLI < Thor
+      def self.exit_on_failure?: () -> true
+      def prompt: (*String prompt) -> void
+      def chat: () -> void
+      def models: () -> void
+    end
   end
 end
