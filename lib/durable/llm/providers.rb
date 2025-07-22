@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This file serves as the main registry and loader for LLM providers in the Durable gem, providing a centralized interface to manage and discover available provider classes. It handles automatic loading of provider modules, maintains a dynamic list of registered providers, offers utility methods for model discovery and provider resolution based on model IDs, and includes provider aliases for backwards compatibility and convenience access.
 
 require 'durable/llm/providers/openai'
@@ -7,11 +9,11 @@ module Durable
   module Llm
     module Providers
       def self.load_all
-        Dir[File.join(__dir__, 'providers', '*.rb')].each { |file| require file }
+        Dir[File.join(__dir__, 'providers', '*.rb')].sort.each { |file| require file }
       end
 
       def self.providers
-        @provider_list ||= constants.select do |const_name|
+        @providers ||= constants.select do |const_name|
           const = const_get(const_name)
           last_component = const.name.split('::').last
           next if last_component == 'Base'

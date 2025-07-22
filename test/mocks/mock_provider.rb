@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'durable/llm/providers/base'
 
 module Durable

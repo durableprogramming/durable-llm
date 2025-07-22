@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This file defines the abstract base class for all LLM providers in the Durable gem, establishing a common interface and shared functionality that all provider implementations must follow. It defines required methods like completion, models, and streaming capabilities, provides caching mechanisms for model lists, handles default API key resolution, and includes stub implementations for optional features like embeddings. The base class ensures consistency across different LLM providers while allowing each provider to implement their specific API communication patterns and response handling.
 
 module Durable
@@ -31,7 +33,7 @@ module Durable
             JSON.parse(File.read(cache_file))
           else
             models = new.models
-            File.write(cache_file, JSON.generate(models)) if models.length > 0
+            File.write(cache_file, JSON.generate(models)) if models.length.positive?
             models
           end
         end

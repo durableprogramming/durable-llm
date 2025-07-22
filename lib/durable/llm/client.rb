@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This file implements the main Client class that provides a unified interface for interacting with different LLM providers. It acts as a facade that delegates operations like completion, chat, embedding, and streaming to the appropriate provider instance while handling parameter processing, model configuration, and providing convenience methods for quick text completion. The client automatically resolves provider classes based on the provider name and manages default parameters including model selection.
 
 require 'zeitwerk'

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This file defines a comprehensive hierarchy of custom exception classes for the Durable LLM gem, providing specific error types for different failure scenarios including API errors, rate limiting, authentication issues, network problems, and configuration errors. The error hierarchy extends from a base Error class and allows for precise error handling and user feedback throughout the gem's LLM provider interactions and operations.
 
 module Durable

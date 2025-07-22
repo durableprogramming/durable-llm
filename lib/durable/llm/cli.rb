@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This file implements the command-line interface for the Durable LLM gem using Thor, providing commands for single prompts, interactive chat sessions, and listing available models. It handles provider resolution, streaming responses, model options, system prompts, and conversation management through a user-friendly CLI with support for both one-shot completions and multi-turn conversations.
 
 require 'thor'

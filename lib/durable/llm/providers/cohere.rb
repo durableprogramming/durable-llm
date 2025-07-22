@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This file implements the Cohere provider for accessing Cohere's language models through their API, providing completion capabilities with authentication handling, error management, and response normalization. It establishes HTTP connections to Cohere's v2 API endpoint, processes chat completions, handles various API error responses, and includes custom response classes to format Cohere's API responses into a consistent interface compatible with the unified provider system.
 
 require 'faraday'

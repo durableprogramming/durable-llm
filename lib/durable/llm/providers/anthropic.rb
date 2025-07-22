@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This file implements the Anthropic provider for Claude models, providing completion and streaming capabilities through the Anthropic API. It handles authentication with API keys, supports multiple Claude model variants (Sonnet, Opus, Haiku), processes both regular and streaming responses, and includes custom response classes to normalize Anthropic's response format to match the common provider interface. The provider manages HTTP communication, error handling, and response parsing for Anthropic's message-based API structure.
 
 require 'faraday'

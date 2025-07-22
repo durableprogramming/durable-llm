@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'minitest/autorun'
 require 'webmock/minitest'
 require 'durable/llm/providers/anthropic'
@@ -41,7 +43,7 @@ class TestProviderAnthropic < Minitest::Test
 
   def test_models
     assert @provider.models.is_a?(Array)
-    assert @provider.models.length > 0
+    assert @provider.models.length.positive?
     assert(@provider.models.all? { |_| _.is_a?(String) })
   end
 

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # This file implements the OpenAI provider for accessing OpenAI's language models through their API, providing completion, embedding, and streaming capabilities with authentication handling, error management, and response normalization. It establishes HTTP connections to OpenAI's v1 API endpoint, processes chat completions and embeddings with organization support, handles various API error responses including rate limiting and authentication errors, and includes comprehensive response classes to format OpenAI's API responses into a consistent interface. The provider supports both regular and streaming response modes using event stream parsing for real-time token streaming, and includes specialized handling for embedding responses alongside standard chat completion functionality.
 
 require 'faraday'
