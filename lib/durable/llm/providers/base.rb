@@ -1,3 +1,5 @@
+# This file defines the abstract base class for all LLM providers in the Durable gem, establishing a common interface and shared functionality that all provider implementations must follow. It defines required methods like completion, models, and streaming capabilities, provides caching mechanisms for model lists, handles default API key resolution, and includes stub implementations for optional features like embeddings. The base class ensures consistency across different LLM providers while allowing each provider to implement their specific API communication patterns and response handling.
+
 module Durable
   module Llm
     module Providers
@@ -63,3 +65,5 @@ module Durable
     end
   end
 end
+
+# Copyright (c) 2025 Durable Programming, LLC. All rights reserved.

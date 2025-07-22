@@ -1,3 +1,5 @@
+# This file serves as the main registry and loader for LLM providers in the Durable gem, providing a centralized interface to manage and discover available provider classes. It handles automatic loading of provider modules, maintains a dynamic list of registered providers, offers utility methods for model discovery and provider resolution based on model IDs, and includes provider aliases for backwards compatibility and convenience access.
+
 require 'durable/llm/providers/openai'
 require 'durable/llm/providers/anthropic'
 
@@ -39,3 +41,5 @@ module Durable
     end
   end
 end
+
+# Copyright (c) 2025 Durable Programming, LLC. All rights reserved.

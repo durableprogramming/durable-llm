@@ -1,3 +1,5 @@
+# This file implements the Hugging Face provider for accessing Hugging Face's inference API models, providing completion capabilities with authentication handling, error management, and response normalization. It establishes HTTP connections to Hugging Face's inference API endpoint, processes text generation requests with dynamic model selection, handles various API error responses, and includes custom response classes to format Hugging Face's API responses into a consistent interface compatible with the unified provider system. The provider currently supports a basic set of popular models like GPT-2, BERT, and DistilBERT.
+
 require 'faraday'
 require 'json'
 require 'durable/llm/errors'
@@ -92,3 +94,5 @@ module Durable
     end
   end
 end
+
+# Copyright (c) 2025 Durable Programming, LLC. All rights reserved.

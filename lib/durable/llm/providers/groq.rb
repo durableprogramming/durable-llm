@@ -1,3 +1,5 @@
+# This file implements the Groq provider for accessing Groq's high-performance language models through their OpenAI-compatible API, providing completion and embedding capabilities with authentication handling, error management, and response normalization. It establishes HTTP connections to Groq's API endpoint, processes chat completions and embeddings, handles various API error responses, and includes custom response classes to format Groq's API responses into a consistent interface compatible with the unified provider system while supporting both regular and streaming response modes.
+
 require 'faraday'
 require 'json'
 require 'durable/llm/errors'
@@ -172,3 +174,5 @@ module Durable
     end
   end
 end
+
+# Copyright (c) 2025 Durable Programming, LLC. All rights reserved.

@@ -31,3 +31,13 @@
 
 # Used by RuboCop. Remote config files pulled in from inherit_from directive.
 .rubocop-https?--*
+
+# Devenv
+.devenv*
+devenv.local.nix
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml

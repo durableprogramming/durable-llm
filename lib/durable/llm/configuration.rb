@@ -1,3 +1,5 @@
+# This file implements the Configuration class that manages settings and API keys for different LLM providers in the Durable gem. It provides dynamic configuration management through method_missing for provider-specific settings, supports loading configuration from environment variables with the DLLM__ prefix pattern, includes optional loading from Datasette LLM configuration files, and maintains a default provider setting with OpenAI as the default. The configuration uses OpenStruct for flexible provider settings storage and handles JSON parsing errors gracefully when loading external configuration files.
+
 require 'ostruct'
 
 module Durable
@@ -60,3 +62,5 @@ module Durable
     end
   end
 end
+
+# Copyright (c) 2025 Durable Programming, LLC. All rights reserved.
