@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-require "bundler/setup"
+require 'bundler/setup'
 require 'thor'
 require 'durable/llm'
 require 'durable/llm/cli'
