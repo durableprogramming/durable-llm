@@ -42,10 +42,10 @@ module Durable
         params.merge!(options[:option]) if options[:option]
 
         if options[:no_stream] || !client.stream?
-          response = client.completion(params)
+          response = client.completion(**params)
           puts response.choices.first
         else
-          client.stream(params) do |chunk|
+          client.stream(**params) do |chunk|
             print chunk
             $stdout.flush
           end
@@ -93,9 +93,10 @@ module Durable
           }
           params.merge!(options[:option]) if options[:option]
 
-          response = client.completion(params)
-          cli.say(response.choices.first.to_s)
-          messages << { role: 'assistant', content: response.choices.first.to_s }
+          response = client.completion(**params)
+          assistant_message = response.choices.first.to_s
+          cli.say(assistant_message)
+          messages << { role: 'assistant', content: assistant_message }
         end
       end
 
