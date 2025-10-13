@@ -1,27 +1,35 @@
 # frozen_string_literal: true
 
-# Groq provider for OpenAI-compatible API access.
+# OpenRouter provider for accessing various language models through the OpenRouter API.
 
 require 'faraday'
 require 'json'
+require 'event_stream_parser'
 require 'durable/llm/errors'
 require 'durable/llm/providers/base'
-require 'event_stream_parser'
 
 module Durable
   module Llm
     module Providers
-      class Groq < Durable::Llm::Providers::Base
-        BASE_URL = 'https://api.groq.com/openai/v1'
+      # OpenRouter provider for accessing various language models through the OpenRouter API.
+      # Provides completion, embedding, and streaming capabilities with authentication handling,
+      # error management, and response normalization.
+      class OpenRouter < Durable::Llm::Providers::Base
+        BASE_URL = 'https://openrouter.ai/api/v1'
 
         def default_api_key
-          Durable::Llm.configuration.groq&.api_key || ENV['GROQ_API_KEY']
+          begin
+            Durable::Llm.configuration.openrouter&.api_key
+          rescue NoMethodError
+            nil
+          end || ENV['OPENROUTER_API_KEY']
         end
 
         attr_accessor :api_key
 
         def initialize(api_key: nil)
-          super
+          super()
+          @api_key = api_key || default_api_key
           @conn = Faraday.new(url: BASE_URL) do |faraday|
             faraday.request :json
             faraday.response :json
@@ -29,10 +37,8 @@ module Durable
           end
         end
 
-        attr_reader :conn
-
         def completion(options)
-          response = conn.post('chat/completions') do |req|
+          response = @conn.post('chat/completions') do |req|
             req.headers['Authorization'] = "Bearer #{@api_key}"
             req.body = options
           end
@@ -41,43 +47,38 @@ module Durable
         end
 
         def embedding(model:, input:, **options)
-          response = conn.post('embeddings') do |req|
+          response = @conn.post('embeddings') do |req|
             req.headers['Authorization'] = "Bearer #{@api_key}"
             req.body = { model: model, input: input, **options }
           end
 
-          handle_response(response, GroqEmbeddingResponse)
+          handle_response(response, OpenRouterEmbeddingResponse)
         end
 
         def models
-          response = conn.get('models') do |req|
+          response = @conn.get('models') do |req|
             req.headers['Authorization'] = "Bearer #{@api_key}"
           end
 
-          resp = handle_response(response).to_h
-
-          resp['data'].map { |model| model['id'] }
+          handle_response(response).data.map { |model| model['id'] }
         end
 
         def self.stream?
           true
         end
 
-        def stream(options)
+        def stream(options, &block)
           options[:stream] = true
+          options['temperature'] = options['temperature'].to_f if options['temperature']
 
-          response = conn.post('chat/completions') do |req|
+          user_proc = proc do |chunk, _size, _total|
+            block.call(OpenRouterStreamResponse.new(chunk))
+          end
+
+          response = @conn.post('chat/completions') do |req|
             req.headers['Authorization'] = "Bearer #{@api_key}"
             req.headers['Accept'] = 'text/event-stream'
-
-            options['temperature'] = options['temperature'].to_f if options['temperature']
-
             req.body = options
-
-            user_proc = proc do |chunk, _size, _total|
-              yield GroqStreamResponse.new(chunk)
-            end
-
             req.options.on_data = to_json_stream(user_proc: user_proc)
           end
 
@@ -115,19 +116,9 @@ module Durable
           maybe_json
         end
 
-        def parse_error_message(response)
-          body = begin
-            JSON.parse(response.body)
-          rescue StandardError
-            nil
-          end
-          message = body&.dig('error', 'message') || response.body
-          "#{response.status} Error: #{message}"
-        end
-
         # END-CODE-FROM
 
-        def handle_response(response, response_class = GroqResponse)
+        def handle_response(response, response_class = OpenRouterResponse)
           case response.status
           when 200..299
             response_class.new(response.body)
@@ -144,7 +135,18 @@ module Durable
           end
         end
 
-        class GroqResponse
+        def parse_error_message(response)
+          body = begin
+            JSON.parse(response.body)
+          rescue StandardError
+            nil
+          end
+          message = body&.dig('error', 'message') || response.body
+          "#{response.status} Error: #{message}"
+        end
+
+        # Response wrapper for OpenRouter API completion responses.
+        class OpenRouterResponse
           attr_reader :raw_response
 
           def initialize(response)
@@ -152,31 +154,24 @@ module Durable
           end
 
           def choices
-            @raw_response['choices'].map { |choice| GroqChoice.new(choice) }
+            @raw_response['choices'].map { |choice| OpenRouterChoice.new(choice) }
           end
 
           def data
             @raw_response['data']
           end
 
-          def embedding
-            @raw_response.dig('data', 0, 'embedding')
-          end
-
           def to_s
             choices.map(&:to_s).join(' ')
           end
-
-          def to_h
-            @raw_response.dup
-          end
         end
 
-        class GroqChoice
+        # Choice wrapper for OpenRouter API responses.
+        class OpenRouterChoice
           attr_reader :message, :finish_reason
 
           def initialize(choice)
-            @message = GroqMessage.new(choice['message'])
+            @message = OpenRouterMessage.new(choice['message'])
             @finish_reason = choice['finish_reason']
           end
 
@@ -185,7 +180,8 @@ module Durable
           end
         end
 
-        class GroqMessage
+        # Message wrapper for OpenRouter API responses.
+        class OpenRouterMessage
           attr_reader :role, :content
 
           def initialize(message)
@@ -198,11 +194,12 @@ module Durable
           end
         end
 
-        class GroqStreamResponse
+        # Stream response wrapper for OpenRouter API streaming responses.
+        class OpenRouterStreamResponse
           attr_reader :choices
 
           def initialize(parsed)
-            @choices = GroqStreamChoice.new(parsed['choices'])
+            @choices = OpenRouterStreamChoice.new(parsed['choices'])
           end
 
           def to_s
@@ -210,12 +207,26 @@ module Durable
           end
         end
 
-        class GroqStreamChoice
+        # Embedding response wrapper for OpenRouter API embedding responses.
+        class OpenRouterEmbeddingResponse
+          attr_reader :embedding
+
+          def initialize(data)
+            @embedding = data.dig('data', 0, 'embedding')
+          end
+
+          def to_a
+            @embedding
+          end
+        end
+
+        # Stream choice wrapper for OpenRouter API streaming responses.
+        class OpenRouterStreamChoice
           attr_reader :delta, :finish_reason
 
           def initialize(choice)
             @choice = [choice].flatten.first
-            @delta = GroqStreamDelta.new(@choice['delta'])
+            @delta = OpenRouterStreamDelta.new(@choice['delta'])
             @finish_reason = @choice['finish_reason']
           end
 
@@ -224,7 +235,8 @@ module Durable
           end
         end
 
-        class GroqStreamDelta
+        # Stream delta wrapper for OpenRouter API streaming responses.
+        class OpenRouterStreamDelta
           attr_reader :role, :content
 
           def initialize(delta)
@@ -234,18 +246,6 @@ module Durable
 
           def to_s
             @content || ''
-          end
-        end
-
-        class GroqEmbeddingResponse
-          attr_reader :embedding
-
-          def initialize(data)
-            @embedding = data.dig('data', 0, 'embedding')
-          end
-
-          def to_a
-            @embedding
           end
         end
       end

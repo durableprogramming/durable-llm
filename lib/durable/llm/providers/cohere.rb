@@ -1,15 +1,20 @@
 # frozen_string_literal: true
 
-# This file implements the Cohere provider for accessing Cohere's language models through their API, providing completion capabilities with authentication handling, error management, and response normalization. It establishes HTTP connections to Cohere's v2 API endpoint, processes chat completions, handles various API error responses, and includes custom response classes to format Cohere's API responses into a consistent interface compatible with the unified provider system.
+# This file implements the Cohere provider for accessing Cohere's language models through their API.
 
 require 'faraday'
 require 'json'
 require 'durable/llm/errors'
 require 'durable/llm/providers/base'
+require 'event_stream_parser'
 
 module Durable
   module Llm
     module Providers
+      # Cohere provider for accessing Cohere's language models
+      #
+      # This class provides completion, embedding, and streaming capabilities
+      # for Cohere's API, including proper error handling and response normalization.
       class Cohere < Durable::Llm::Providers::Base
         BASE_URL = 'https://api.cohere.ai/v2'
 
@@ -20,7 +25,7 @@ module Durable
         attr_accessor :api_key
 
         def initialize(api_key: nil)
-          @api_key = api_key || default_api_key
+          super(api_key: api_key)
           @conn = Faraday.new(url: BASE_URL) do |faraday|
             faraday.request :json
             faraday.response :json
@@ -38,10 +43,37 @@ module Durable
           handle_response(response)
         end
 
-        def models
-          response = @conn.get('models') do |req|
+        def stream(options)
+          options[:stream] = true
+
+          response = @conn.post('chat') do |req|
             req.headers['Authorization'] = "Bearer #{@api_key}"
-            req.headers['OpenAI-Organization'] = @organization if @organization
+            req.headers['Accept'] = 'text/event-stream'
+            req.body = options
+
+            user_proc = proc do |chunk, _size, _total|
+              yield CohereStreamResponse.new(chunk)
+            end
+
+            req.options.on_data = to_json_stream(user_proc: user_proc)
+          end
+
+          handle_response(response)
+        end
+
+        def embedding(model:, input:, **options)
+          response = @conn.post('embed') do |req|
+            req.headers['Authorization'] = "Bearer #{@api_key}"
+            req.headers['Content-Type'] = 'application/json'
+            req.body = { model: model, texts: Array(input), input_type: 'search_document', **options }
+          end
+
+          handle_response(response, CohereEmbeddingResponse)
+        end
+
+        def models
+          response = @conn.get('../v1/models') do |req|
+            req.headers['Authorization'] = "Bearer #{@api_key}"
           end
 
           data = handle_response(response).raw_response
@@ -49,26 +81,67 @@ module Durable
         end
 
         def self.stream?
-          false
+          true
         end
 
         private
 
-        def handle_response(response)
+        # CODE-FROM: ruby-openai @ https://github.com/alexrudall/ruby-openai/blob/main/lib/openai/http.rb
+        # MIT License: https://github.com/alexrudall/ruby-openai/blob/main/LICENSE.md
+        # Given a proc, returns an outer proc that can be used to iterate over a JSON stream of chunks.
+        # For each chunk, the inner user_proc is called giving it the JSON object. The JSON object could
+        # be a data object or an error object as described in the Cohere API documentation.
+        #
+        # @param user_proc [Proc] The inner proc to call for each JSON object in the chunk.
+        # @return [Proc] An outer proc that iterates over a raw stream, converting it to JSON.
+        def to_json_stream(user_proc:)
+          parser = EventStreamParser::Parser.new
+
+          proc do |chunk, _bytes, env|
+            if env && env.status != 200
+              raise_error = Faraday::Response::RaiseError.new
+              raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
+            end
+
+            parser.feed(chunk) do |_type, data|
+              user_proc.call(JSON.parse(data)) unless data == '[DONE]'
+            end
+          end
+        end
+
+        def try_parse_json(maybe_json)
+          JSON.parse(maybe_json)
+        rescue JSON::ParserError
+          maybe_json
+        end
+
+        # END-CODE-FROM
+
+        def handle_response(response, response_class = CohereResponse)
           case response.status
           when 200..299
-            CohereResponse.new(response.body)
+            response_class.new(response.body)
           when 401
-            raise Durable::Llm::AuthenticationError, response.body['message']
+            raise Durable::Llm::AuthenticationError, parse_error_message(response)
           when 429
-            raise Durable::Llm::RateLimitError, response.body['message']
+            raise Durable::Llm::RateLimitError, parse_error_message(response)
           when 400..499
-            raise Durable::Llm::InvalidRequestError, response.body['message']
+            raise Durable::Llm::InvalidRequestError, parse_error_message(response)
           when 500..599
-            raise Durable::Llm::ServerError, response.body['message']
+            raise Durable::Llm::ServerError, parse_error_message(response)
           else
             raise Durable::Llm::APIError, "Unexpected response code: #{response.status}"
           end
+        end
+
+        def parse_error_message(response)
+          body = begin
+            JSON.parse(response.body)
+          rescue StandardError
+            nil
+          end
+          message = body&.dig('message') || response.body
+          "#{response.status} Error: #{message}"
         end
 
         class CohereResponse
@@ -79,7 +152,7 @@ module Durable
           end
 
           def choices
-            [@raw_response.dig('message', 'content')].flatten.map { |generation| CohereChoice.new(generation) }
+            @raw_response.dig('message', 'content')&.map { |generation| CohereChoice.new(generation) } || []
           end
 
           def to_s
@@ -96,6 +169,54 @@ module Durable
 
           def to_s
             @text
+          end
+        end
+
+        class CohereEmbeddingResponse
+          attr_reader :embedding
+
+          def initialize(data)
+            @embedding = data.dig('embeddings', 'float', 0)
+          end
+
+          def to_a
+            @embedding
+          end
+        end
+
+        class CohereStreamResponse
+          attr_reader :choices
+
+          def initialize(parsed)
+            @choices = [CohereStreamChoice.new(parsed['delta'])]
+          end
+
+          def to_s
+            @choices.map(&:to_s).join(' ')
+          end
+        end
+
+        class CohereStreamChoice
+          attr_reader :delta
+
+          def initialize(delta)
+            @delta = CohereStreamDelta.new(delta)
+          end
+
+          def to_s
+            @delta.to_s
+          end
+        end
+
+        class CohereStreamDelta
+          attr_reader :text
+
+          def initialize(delta)
+            @text = delta['text']
+          end
+
+          def to_s
+            @text || ''
           end
         end
       end
