@@ -1,17 +1,22 @@
 # frozen_string_literal: true
 
-# This file implements the Hugging Face provider for accessing Hugging Face's inference API models, providing completion capabilities with authentication handling, error management, and response normalization. It establishes HTTP connections to Hugging Face's inference API endpoint, processes text generation requests with dynamic model selection, handles various API error responses, and includes custom response classes to format Hugging Face's API responses into a consistent interface compatible with the unified provider system. The provider currently supports a basic set of popular models like GPT-2, BERT, and DistilBERT.
+# This file implements the Hugging Face provider for accessing Hugging Face's inference API models.
 
 require 'faraday'
 require 'json'
 require 'durable/llm/errors'
 require 'durable/llm/providers/base'
+require 'event_stream_parser'
 
 module Durable
   module Llm
     module Providers
+      # Hugging Face provider for accessing Hugging Face's inference API models.
+      #
+      # Provides completion, embedding, and streaming capabilities with authentication
+      # handling, error management, and response normalization.
       class Huggingface < Durable::Llm::Providers::Base
-        BASE_URL = 'https://api-inference.huggingface.co/models'
+        BASE_URL = 'https://api-inference.huggingface.co'
 
         def default_api_key
           Durable::Llm.configuration.huggingface&.api_key || ENV['HUGGINGFACE_API_KEY']
@@ -26,11 +31,12 @@ module Durable
             faraday.response :json
             faraday.adapter Faraday.default_adapter
           end
+          super()
         end
 
         def completion(options)
           model = options.delete(:model) || 'gpt2'
-          response = @conn.post("/#{model}") do |req|
+          response = @conn.post("models/#{model}") do |req|
             req.headers['Authorization'] = "Bearer #{@api_key}"
             req.body = options
           end
@@ -38,8 +44,35 @@ module Durable
           handle_response(response)
         end
 
+        def embedding(model:, input:, **options)
+          response = @conn.post("models/#{model}") do |req|
+            req.headers['Authorization'] = "Bearer #{@api_key}"
+            req.body = { inputs: input, **options }
+          end
+
+          handle_response(response, HuggingfaceEmbeddingResponse)
+        end
+
         def models
           self.class.models
+        end
+
+        def self.stream?
+          true
+        end
+
+        def stream(options)
+          model = options.delete(:model) || 'gpt2'
+          options[:stream] = true
+
+          @conn.post("models/#{model}") do |req|
+            req.headers['Authorization'] = "Bearer #{@api_key}"
+            req.headers['Accept'] = 'text/event-stream'
+            req.body = options
+            req.options.on_data = to_json_stream(user_proc: proc { |chunk|
+              yield HuggingfaceStreamResponse.new(chunk)
+            })
+          end
         end
 
         def self.models
@@ -48,23 +81,47 @@ module Durable
 
         private
 
-        def handle_response(response)
-          case response.status
-          when 200..299
-            HuggingfaceResponse.new(response.body)
-          when 401
-            raise Durable::Llm::AuthenticationError, response.body['error']
-          when 429
-            raise Durable::Llm::RateLimitError, response.body['error']
-          when 400..499
-            raise Durable::Llm::InvalidRequestError, response.body['error']
-          when 500..599
-            raise Durable::Llm::ServerError, response.body['error']
-          else
-            raise Durable::Llm::APIError, "Unexpected response code: #{response.status}"
+        # CODE-FROM: ruby-openai @ https://github.com/alexrudall/ruby-openai/blob/main/lib/openai/http.rb
+        # MIT License: https://github.com/alexrudall/ruby-openai/blob/main/LICENSE.md
+        def to_json_stream(user_proc:)
+          parser = EventStreamParser::Parser.new
+
+          proc do |chunk, _bytes, env|
+            if env && env.status != 200
+              raise_error = Faraday::Response::RaiseError.new
+              raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
+            end
+
+            parser.feed(chunk) do |_type, data|
+              user_proc.call(JSON.parse(data)) unless data == '[DONE]'
+            end
           end
         end
 
+        def try_parse_json(maybe_json)
+          JSON.parse(maybe_json)
+        rescue JSON::ParserError
+          maybe_json
+        end
+
+        def handle_response(response, response_class = HuggingfaceResponse)
+          return response_class.new(response.body) if (200..299).cover?(response.status)
+
+          error_class = error_class_for_status(response.status)
+          raise error_class, response.body['error'] || "HTTP #{response.status}"
+        end
+
+        def error_class_for_status(status)
+          case status
+          when 401 then Durable::Llm::AuthenticationError
+          when 429 then Durable::Llm::RateLimitError
+          when 400..499 then Durable::Llm::InvalidRequestError
+          when 500..599 then Durable::Llm::ServerError
+          else Durable::Llm::APIError
+          end
+        end
+
+        # Response wrapper for Hugging Face completion API responses.
         class HuggingfaceResponse
           attr_reader :raw_response
 
@@ -73,7 +130,7 @@ module Durable
           end
 
           def choices
-            [@raw_response.first].map { |choice| HuggingfaceChoice.new(choice) }
+            [HuggingfaceChoice.new(@raw_response)]
           end
 
           def to_s
@@ -81,6 +138,7 @@ module Durable
           end
         end
 
+        # Individual choice from Hugging Face completion response.
         class HuggingfaceChoice
           attr_reader :text
 
@@ -90,6 +148,45 @@ module Durable
 
           def to_s
             @text
+          end
+        end
+
+        # Response wrapper for Hugging Face embedding API responses.
+        class HuggingfaceEmbeddingResponse
+          attr_reader :embedding
+
+          def initialize(data)
+            @embedding = data
+          end
+
+          def to_a
+            @embedding
+          end
+        end
+
+        # Response wrapper for Hugging Face streaming API responses.
+        class HuggingfaceStreamResponse
+          attr_reader :token
+
+          def initialize(parsed)
+            @token = HuggingfaceStreamToken.new(parsed)
+          end
+
+          def to_s
+            @token.to_s
+          end
+        end
+
+        # Individual token from Hugging Face streaming response.
+        class HuggingfaceStreamToken
+          attr_reader :text
+
+          def initialize(token)
+            @text = token['token']['text']
+          end
+
+          def to_s
+            @text || ''
           end
         end
       end

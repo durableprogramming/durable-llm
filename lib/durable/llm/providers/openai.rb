@@ -11,17 +11,66 @@ require 'event_stream_parser'
 module Durable
   module Llm
     module Providers
+      # OpenAI provider for accessing OpenAI's language models through their API.
+      #
+      # This provider implements the Durable::Llm::Providers::Base interface to provide
+      # completion, embedding, and streaming capabilities for OpenAI's models including
+      # GPT-3.5, GPT-4, and their variants. It handles authentication via API keys,
+      # supports organization-based access, and provides comprehensive error handling
+      # for various OpenAI API error conditions.
+      #
+      # Key features:
+      # - Chat completions with support for multi-turn conversations
+      # - Text embeddings for semantic similarity and retrieval tasks
+      # - Real-time streaming responses for interactive applications
+      # - Automatic model listing from OpenAI's API
+      # - Organization support for enterprise accounts
+      # - Comprehensive error handling with specific exception types
+      #
+      # @example Basic completion
+      #   provider = Durable::Llm::Providers::OpenAI.new(api_key: 'your-api-key')
+      #   response = provider.completion(
+      #     model: 'gpt-3.5-turbo',
+      #     messages: [{ role: 'user', content: 'Hello, world!' }]
+      #   )
+      #   puts response.choices.first.to_s
+      #
+      # @example Streaming response
+      #   provider.stream(model: 'gpt-4', messages: messages) do |chunk|
+      #     print chunk.to_s
+      #   end
+      #
+      # @example Text embedding
+      #   embedding = provider.embedding(
+      #     model: 'text-embedding-ada-002',
+      #     input: 'Some text to embed'
+      #   )
+      #
+      # @see https://platform.openai.com/docs/api-reference OpenAI API Documentation
       class OpenAI < Durable::Llm::Providers::Base
         BASE_URL = 'https://api.openai.com/v1'
 
         def default_api_key
-          Durable::Llm.configuration.openai&.api_key || ENV['OPENAI_API_KEY']
+          begin
+            Durable::Llm.configuration.openai&.api_key
+          rescue NoMethodError
+            nil
+          end || ENV['OPENAI_API_KEY']
         end
 
+        # @!attribute [rw] api_key
+        #   @return [String, nil] The API key used for authentication with OpenAI
+        # @!attribute [rw] organization
+        #   @return [String, nil] The OpenAI organization ID for enterprise accounts
         attr_accessor :api_key, :organization
 
+        # Initializes a new OpenAI provider instance.
+        #
+        # @param api_key [String, nil] The OpenAI API key. If nil, uses default_api_key
+        # @param organization [String, nil] The OpenAI organization ID. If nil, uses ENV['OPENAI_ORGANIZATION']
+        # @return [OpenAI] A new OpenAI provider instance
         def initialize(api_key: nil, organization: nil)
-          @api_key = api_key || default_api_key
+          super(api_key: api_key)
           @organization = organization || ENV['OPENAI_ORGANIZATION']
           @conn = Faraday.new(url: BASE_URL) do |faraday|
             faraday.request :json
@@ -30,6 +79,19 @@ module Durable
           end
         end
 
+        # Performs a chat completion request to OpenAI's API.
+        #
+        # @param options [Hash] The completion options
+        # @option options [String] :model The model to use (e.g., 'gpt-3.5-turbo', 'gpt-4')
+        # @option options [Array<Hash>] :messages Array of message objects with role and content
+        # @option options [Float] :temperature Sampling temperature between 0 and 2
+        # @option options [Integer] :max_tokens Maximum number of tokens to generate
+        # @option options [Float] :top_p Nucleus sampling parameter
+        # @return [OpenAIResponse] The completion response object
+        # @raise [Durable::Llm::AuthenticationError] If API key is invalid
+        # @raise [Durable::Llm::RateLimitError] If rate limit is exceeded
+        # @raise [Durable::Llm::InvalidRequestError] If request parameters are invalid
+        # @raise [Durable::Llm::ServerError] If OpenAI's servers encounter an error
         def completion(options)
           response = @conn.post('chat/completions') do |req|
             req.headers['Authorization'] = "Bearer #{@api_key}"
@@ -40,6 +102,16 @@ module Durable
           handle_response(response)
         end
 
+        # Performs an embedding request to OpenAI's API.
+        #
+        # @param model [String] The embedding model to use (e.g., 'text-embedding-ada-002')
+        # @param input [String, Array<String>] The text(s) to embed
+        # @param options [Hash] Additional options for the embedding request
+        # @return [OpenAIEmbeddingResponse] The embedding response object
+        # @raise [Durable::Llm::AuthenticationError] If API key is invalid
+        # @raise [Durable::Llm::RateLimitError] If rate limit is exceeded
+        # @raise [Durable::Llm::InvalidRequestError] If request parameters are invalid
+        # @raise [Durable::Llm::ServerError] If OpenAI's servers encounter an error
         def embedding(model:, input:, **options)
           response = @conn.post('embeddings') do |req|
             req.headers['Authorization'] = "Bearer #{@api_key}"
@@ -50,6 +122,12 @@ module Durable
           handle_response(response, OpenAIEmbeddingResponse)
         end
 
+        # Retrieves the list of available models from OpenAI's API.
+        #
+        # @return [Array<String>] Array of model IDs available to the account
+        # @raise [Durable::Llm::AuthenticationError] If API key is invalid
+        # @raise [Durable::Llm::RateLimitError] If rate limit is exceeded
+        # @raise [Durable::Llm::ServerError] If OpenAI's servers encounter an error
         def models
           response = @conn.get('models') do |req|
             req.headers['Authorization'] = "Bearer #{@api_key}"
@@ -59,10 +137,20 @@ module Durable
           handle_response(response).data.map { |model| model['id'] }
         end
 
+        # @return [Boolean] True, indicating this provider supports streaming
         def self.stream?
           true
         end
 
+        # Performs a streaming chat completion request to OpenAI's API.
+        #
+        # @param options [Hash] The stream options (same as completion plus stream: true)
+        # @yield [OpenAIStreamResponse] Yields stream response chunks as they arrive
+        # @return [Object] The final response object
+        # @raise [Durable::Llm::AuthenticationError] If API key is invalid
+        # @raise [Durable::Llm::RateLimitError] If rate limit is exceeded
+        # @raise [Durable::Llm::InvalidRequestError] If request parameters are invalid
+        # @raise [Durable::Llm::ServerError] If OpenAI's servers encounter an error
         def stream(options)
           options[:stream] = true
 
@@ -87,6 +175,15 @@ module Durable
 
         private
 
+        # Converts JSON stream chunks to individual data objects for processing.
+        #
+        # This method is adapted from the ruby-openai gem to handle Server-Sent Events
+        # from OpenAI's streaming API. It parses the event stream and yields individual
+        # JSON objects for each data chunk received.
+        #
+        # @param user_proc [Proc] The proc to call with each parsed JSON object
+        # @return [Proc] A proc that can be used as Faraday's on_data callback
+        # @note Adapted from ruby-openai gem under MIT License
         # CODE-FROM: ruby-openai @ https://github.com/alexrudall/ruby-openai/blob/main/lib/openai/http.rb
         # MIT License: https://github.com/alexrudall/ruby-openai/blob/main/LICENSE.md
         # Given a proc, returns an outer proc that can be used to iterate over a JSON stream of chunks.
@@ -110,6 +207,10 @@ module Durable
           end
         end
 
+        # Attempts to parse a string as JSON, returning the string if parsing fails.
+        #
+        # @param maybe_json [String] The string that might be JSON
+        # @return [Hash, Array, String] The parsed JSON object or the original string
         def try_parse_json(maybe_json)
           JSON.parse(maybe_json)
         rescue JSON::ParserError
@@ -118,10 +219,20 @@ module Durable
 
         # END-CODE-FROM
 
-        def handle_response(response, responseClass = OpenAIResponse)
+        # Processes the API response and handles errors appropriately.
+        #
+        # @param response [Faraday::Response] The HTTP response from the API
+        # @param response_class [Class] The response class to instantiate for successful responses
+        # @return [Object] An instance of response_class for successful responses
+        # @raise [Durable::Llm::AuthenticationError] For 401 responses
+        # @raise [Durable::Llm::RateLimitError] For 429 responses
+        # @raise [Durable::Llm::InvalidRequestError] For 4xx client errors
+        # @raise [Durable::Llm::ServerError] For 5xx server errors
+        # @raise [Durable::Llm::APIError] For unexpected status codes
+        def handle_response(response, response_class = OpenAIResponse)
           case response.status
           when 200..299
-            responseClass.new(response.body)
+            response_class.new(response.body)
           when 401
             raise Durable::Llm::AuthenticationError, parse_error_message(response)
           when 429
@@ -135,6 +246,10 @@ module Durable
           end
         end
 
+        # Extracts and formats error messages from API error responses.
+        #
+        # @param response [Faraday::Response] The error response from the API
+        # @return [String] The formatted error message
         def parse_error_message(response)
           body = begin
             JSON.parse(response.body)
@@ -145,6 +260,11 @@ module Durable
           "#{response.status} Error: #{message}"
         end
 
+        # Response object for OpenAI chat completion API responses.
+        #
+        # This class wraps the raw response from OpenAI's chat completions endpoint
+        # and provides a consistent interface for accessing choices, usage data, and
+        # other response components.
         class OpenAIResponse
           attr_reader :raw_response
 
@@ -169,6 +289,10 @@ module Durable
           end
         end
 
+        # Represents a single choice in an OpenAI chat completion response.
+        #
+        # Each choice contains a message with role and content, along with
+        # metadata like finish reason.
         class OpenAIChoice
           attr_reader :message, :finish_reason
 
@@ -182,6 +306,9 @@ module Durable
           end
         end
 
+        # Represents a message in an OpenAI chat completion.
+        #
+        # Messages have a role (system, user, assistant) and content text.
         class OpenAIMessage
           attr_reader :role, :content
 
@@ -195,6 +322,10 @@ module Durable
           end
         end
 
+        # Response object for streaming OpenAI chat completion chunks.
+        #
+        # This wraps individual chunks from the Server-Sent Events stream,
+        # providing access to the incremental content updates.
         class OpenAIStreamResponse
           attr_reader :choices
 
@@ -207,6 +338,9 @@ module Durable
           end
         end
 
+        # Response object for OpenAI embedding API responses.
+        #
+        # Provides access to the embedding vectors generated for input text.
         class OpenAIEmbeddingResponse
           attr_reader :embedding
 
@@ -219,6 +353,9 @@ module Durable
           end
         end
 
+        # Represents a single choice in a streaming OpenAI response chunk.
+        #
+        # Contains the delta (incremental content) and finish reason for the choice.
         class OpenAIStreamChoice
           attr_reader :delta, :finish_reason
 
@@ -233,6 +370,9 @@ module Durable
           end
         end
 
+        # Represents the incremental content delta in a streaming response.
+        #
+        # Contains the role (for the first chunk) and content updates.
         class OpenAIStreamDelta
           attr_reader :role, :content
 

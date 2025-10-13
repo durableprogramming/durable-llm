@@ -2,6 +2,7 @@
 
 require 'minitest/autorun'
 require 'webmock/minitest'
+require 'durable/llm'
 require 'durable/llm/providers/cohere'
 
 class TestProviderCohere < Minitest::Test
@@ -25,7 +26,7 @@ class TestProviderCohere < Minitest::Test
     stub_request(:post, 'https://api.cohere.ai/v2/chat')
       .to_return(status: 200, body: {
         message: {
-          content: { text: 'Test response' }
+          content: [{ type: 'text', text: 'Test response' }]
         }
       }.to_json, headers: { 'Content-Type' => 'application/json' })
 
@@ -36,7 +37,7 @@ class TestProviderCohere < Minitest::Test
   end
 
   def test_models
-    stub_request(:get, 'https://api.cohere.ai/v2/models')
+    stub_request(:get, 'https://api.cohere.ai/v1/models')
       .to_return(status: 200, body: {
         models: [
           { name: 'command' },
@@ -60,6 +61,6 @@ class TestProviderCohere < Minitest::Test
   end
 
   def test_stream
-    assert_equal false, Durable::Llm::Providers::Cohere.stream?
+    assert_equal true, Durable::Llm::Providers::Cohere.stream?
   end
 end

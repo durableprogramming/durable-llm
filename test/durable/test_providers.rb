@@ -7,12 +7,12 @@ require 'durable/llm/providers/huggingface'
 
 class TestProviders < Minitest::Test
   def setup
-    @original_providers = Durable::Llm::Providers.instance_variable_get(:@provider_list)
-    Durable::Llm::Providers.instance_variable_set(:@provider_list, nil)
+    @original_providers = Durable::Llm::Providers.instance_variable_get(:@providers)
+    Durable::Llm::Providers.instance_variable_set(:@providers, nil)
   end
 
   def teardown
-    Durable::Llm::Providers.instance_variable_set(:@provider_list, @original_providers)
+    Durable::Llm::Providers.instance_variable_set(:@providers, @original_providers)
   end
 
   def test_providers
@@ -60,5 +60,21 @@ class TestProviders < Minitest::Test
     assert_equal Durable::Llm::Providers::OpenAI, Durable::Llm::Providers::Openai
     assert_equal Durable::Llm::Providers::Anthropic, Durable::Llm::Providers::Claude
     assert_equal Durable::Llm::Providers::Anthropic, Durable::Llm::Providers::Claude3
+  end
+
+  def test_load_all
+    # Should not raise an error and return the list of files
+    files = Durable::Llm::Providers.load_all
+    assert_kind_of Array, files
+    assert(files.all? { |f| f.end_with?('.rb') })
+  end
+
+  def test_provider_class_for
+    assert_equal Durable::Llm::Providers::OpenAI, Durable::Llm::Providers.provider_class_for(:openai)
+    assert_equal Durable::Llm::Providers::Anthropic, Durable::Llm::Providers.provider_class_for(:anthropic)
+    assert_equal Durable::Llm::Providers::DeepSeek, Durable::Llm::Providers.provider_class_for(:deepseek)
+    assert_equal Durable::Llm::Providers::OpenRouter, Durable::Llm::Providers.provider_class_for(:openrouter)
+    assert_equal Durable::Llm::Providers::AzureOpenai, Durable::Llm::Providers.provider_class_for(:azureopenai)
+    assert_equal Durable::Llm::Providers::Opencode, Durable::Llm::Providers.provider_class_for(:opencode)
   end
 end
