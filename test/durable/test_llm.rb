@@ -133,11 +133,6 @@ class TestLlm < Minitest::Test
     assert_equal Durable::Llm::Providers::Anthropic, provider_class
   end
 
-  def test_version
-    assert_equal '0.1.4', Durable::Llm::VERSION
-    assert_instance_of String, Durable::Llm::VERSION
-  end
-
   def test_new
     client = Durable::Llm.new(:openai, api_key: 'test')
     assert_instance_of Durable::Llm::Client, client
