@@ -29,44 +29,85 @@ Here's a basic example of how to use Durable-LLM:
 ```ruby
 require 'durable-llm'
 
-client = Durable::Llm::Client.new(:openai, api_key: 'your-api-key')
+# Simple text completion
+client = Durable::Llm.new(:openai, api_key: 'your-api-key')
+response = client.quick_complete('Hello, how are you?')
+puts response
 
+# Full completion with messages
 response = client.completion(
   model: 'gpt-3.5-turbo',
   messages: [{ role: 'user', content: 'Hello, how are you?' }]
 )
-
 puts response.choices.first.message.content
 
+# Chat completion (alias for completion)
+response = client.chat(
+  model: 'gpt-3.5-turbo',
+  messages: [{ role: 'user', content: 'Hello, how are you?' }]
+)
+
+# Streaming responses
+client.stream(model: 'gpt-3.5-turbo', messages: [...]) do |chunk|
+  print chunk.choices.first.delta.content
+end
+
+# Embeddings (if supported by provider)
+response = client.embed(
+  model: 'text-embedding-ada-002',
+  input: 'Hello world'
+)
 ```
 
 ## Features
 
 - Unified interface for multiple LLM providers
 - Consistent input/output format across different models
-- Error handling and retries
-- Streaming support
+- Simple `quick_complete()` method for text completion
+- Full `completion()` and `chat()` methods for complex interactions
+- `embed()` method for text embeddings
+- `stream()` method for real-time streaming responses
+- Comprehensive error handling and retries
 - Customizable timeout and request options
+- Environment variable configuration support
 
 ## Supported Providers
 
 - OpenAI
 - Anthropic
-- Grok
-- Huggingface
-- Cohere 
+- Google (Gemini)
+- Cohere
+- Mistral AI
+- Groq
+- Fireworks AI
+- Together AI
+- DeepSeek
+- OpenRouter
+- Perplexity
+- xAI
+- Azure OpenAI
+- Hugging Face 
 
 ## Configuration
 
-You can configure Durable-LLM globally or on a per-request basis:
+Configure Durable-LLM globally using environment variables or programmatically:
 
 ```ruby
+# Environment variables (recommended)
+# export DLLM__OPENAI__API_KEY=your-openai-key
+# export DLLM__ANTHROPIC__API_KEY=your-anthropic-key
+
+# Or configure programmatically
 Durable::Llm.configure do |config|
   config.default_provider   = :openai
   config.openai.api_key     = 'your-openai-api-key'
   config.anthropic.api_key  = 'your-anthropic-api-key'
   # Add other provider configurations as needed
 end
+
+# Create clients with automatic configuration
+client = Durable::Llm.new(:openai)  # Uses configured API key
+client = Durable::Llm.new(:anthropic, model: 'claude-3-sonnet-20240229')
 ```
 
 ## Error Handling
@@ -80,6 +121,8 @@ rescue Durable::Llm::APIError => e
   puts "API Error: #{e.message}"
 rescue Durable::Llm::RateLimitError => e
   puts "Rate Limit Exceeded: #{e.message}"
+rescue Durable::Llm::AuthenticationError => e
+  puts "Authentication Failed: #{e.message}"
 end
 ```
 

@@ -13,6 +13,9 @@ require 'durable/llm/providers'
 
 module Durable
   module Llm
+    # Command-line interface for Durable LLM gem.
+    #
+    # Provides Thor-based CLI commands for interacting with LLM providers.
     class CLI < Thor
       def self.exit_on_failure?
         true
