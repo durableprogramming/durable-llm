@@ -139,6 +139,7 @@ module Durable
 
         private_class_method :model_cache_file, :cache_valid?, :cached_models, :fetch_and_cache_models
 
+
         # Returns the list of supported option names for completions
         #
         # @return [Array<String>] The supported option names

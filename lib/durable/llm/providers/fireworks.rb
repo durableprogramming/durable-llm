@@ -11,6 +11,10 @@ require 'durable/llm/providers/base'
 module Durable
   module Llm
     module Providers
+      # Fireworks AI provider for accessing Fireworks AI's language models.
+      #
+      # Provides completion, embedding, and streaming capabilities with proper
+      # error handling and response normalization.
       class Fireworks < Durable::Llm::Providers::Base
         BASE_URL = 'https://api.fireworks.ai/inference/v1'
 
@@ -174,6 +178,10 @@ module Durable
           "#{response.status} Error: #{message}"
         end
 
+        # Response object for Fireworks chat API responses.
+        #
+        # Wraps the raw response and provides a consistent interface for accessing
+        # message content and metadata.
         class FireworksResponse
           attr_reader :raw_response
 
@@ -194,6 +202,9 @@ module Durable
           end
         end
 
+        # Represents a single choice in a Fireworks response.
+        #
+        # Contains the message and finish reason for the choice.
         class FireworksChoice
           attr_reader :message, :finish_reason
 
@@ -207,6 +218,9 @@ module Durable
           end
         end
 
+        # Represents a message in a Fireworks conversation.
+        #
+        # Messages have a role (user, assistant) and text content.
         class FireworksMessage
           attr_reader :role, :content
 
@@ -220,6 +234,9 @@ module Durable
           end
         end
 
+        # Response object for streaming Fireworks chat chunks.
+        #
+        # Wraps individual chunks from the Server-Sent Events stream.
         class FireworksStreamResponse
           attr_reader :choices
 
@@ -232,6 +249,9 @@ module Durable
           end
         end
 
+        # Response object for Fireworks embedding API responses.
+        #
+        # Wraps embedding data and provides array access to the vector representation.
         class FireworksEmbeddingResponse
           attr_reader :embedding
 
@@ -244,6 +264,9 @@ module Durable
           end
         end
 
+        # Represents a single choice in a streaming Fireworks response chunk.
+        #
+        # Contains the delta (incremental content) and finish reason for the choice.
         class FireworksStreamChoice
           attr_reader :delta, :finish_reason
 
@@ -258,6 +281,9 @@ module Durable
           end
         end
 
+        # Represents the incremental content delta in a streaming response.
+        #
+        # Contains the role and text content of the delta.
         class FireworksStreamDelta
           attr_reader :role, :content
 

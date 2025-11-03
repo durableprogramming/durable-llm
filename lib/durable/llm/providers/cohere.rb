@@ -144,6 +144,10 @@ module Durable
           "#{response.status} Error: #{message}"
         end
 
+        # Response object for Cohere chat API responses.
+        #
+        # Wraps the raw response and provides a consistent interface for accessing
+        # message content and metadata.
         class CohereResponse
           attr_reader :raw_response
 
@@ -160,6 +164,9 @@ module Durable
           end
         end
 
+        # Represents a single choice in a Cohere response.
+        #
+        # Contains the generated text content.
         class CohereChoice
           attr_reader :text
 
@@ -172,6 +179,9 @@ module Durable
           end
         end
 
+        # Response object for Cohere embedding API responses.
+        #
+        # Wraps embedding data and provides array access to the vector representation.
         class CohereEmbeddingResponse
           attr_reader :embedding
 
@@ -184,6 +194,9 @@ module Durable
           end
         end
 
+        # Response object for streaming Cohere chat chunks.
+        #
+        # Wraps individual chunks from the Server-Sent Events stream.
         class CohereStreamResponse
           attr_reader :choices
 
@@ -196,6 +209,9 @@ module Durable
           end
         end
 
+        # Represents a single choice in a streaming Cohere response chunk.
+        #
+        # Contains the delta (incremental content) for the choice.
         class CohereStreamChoice
           attr_reader :delta
 
@@ -208,6 +224,9 @@ module Durable
           end
         end
 
+        # Represents the incremental content delta in a streaming response.
+        #
+        # Contains the text content of the delta.
         class CohereStreamDelta
           attr_reader :text
 

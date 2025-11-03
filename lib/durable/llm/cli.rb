@@ -13,6 +13,9 @@ require 'durable/llm/providers'
 
 module Durable
   module Llm
+    # Command-line interface for Durable LLM gem.
+    #
+    # Provides Thor-based CLI commands for interacting with LLM providers.
     class CLI < Thor
       def self.exit_on_failure?
         true
@@ -21,34 +24,34 @@ module Durable
       CONVERSATIONS_DIR = File.expand_path('~/.durable_llm/conversations')
       LAST_CONVERSATION_FILE = File.join(CONVERSATIONS_DIR, 'last_conversation.txt')
 
-      def conversation_file_path(id)
-        File.join(CONVERSATIONS_DIR, "#{id}.json")
+      no_commands do
+        def conversation_file_path(id)
+          File.join(CONVERSATIONS_DIR, "#{id}.json")
+        end
+
+        def load_conversation(id)
+          path = conversation_file_path(id)
+          return nil unless File.exist?(path)
+
+          JSON.parse(File.read(path))
+        end
+
+        def save_conversation(conversation)
+          FileUtils.mkdir_p(CONVERSATIONS_DIR) unless Dir.exist?(CONVERSATIONS_DIR)
+          id = conversation['id'] || SecureRandom.uuid
+          conversation['id'] = id
+          conversation['updated_at'] = Time.now.iso8601
+          File.write(conversation_file_path(id), JSON.generate(conversation))
+          File.write(LAST_CONVERSATION_FILE, id)
+          id
+        end
+
+        def last_conversation_id
+          return nil unless File.exist?(LAST_CONVERSATION_FILE)
+
+          File.read(LAST_CONVERSATION_FILE).strip
+        end
       end
-
-      def load_conversation(id)
-        path = conversation_file_path(id)
-        return nil unless File.exist?(path)
-
-        JSON.parse(File.read(path))
-      end
-
-      def save_conversation(conversation)
-        FileUtils.mkdir_p(CONVERSATIONS_DIR) unless Dir.exist?(CONVERSATIONS_DIR)
-        id = conversation['id'] || SecureRandom.uuid
-        conversation['id'] = id
-        conversation['updated_at'] = Time.now.iso8601
-        File.write(conversation_file_path(id), JSON.generate(conversation))
-        File.write(LAST_CONVERSATION_FILE, id)
-        id
-      end
-
-      def last_conversation_id
-        return nil unless File.exist?(LAST_CONVERSATION_FILE)
-
-        File.read(LAST_CONVERSATION_FILE).strip
-      end
-
-      private :load_conversation, :save_conversation
 
       # Run a single prompt and get a response
       #

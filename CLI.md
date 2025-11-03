@@ -1,5 +1,3 @@
-Here's the content for the file CLI.md:
-
 # Durable-LLM Command Line Interface (CLI)
 
 Durable-LLM provides a command-line interface (CLI) for interacting with various Large Language Model providers. This document outlines the available commands and their usage.

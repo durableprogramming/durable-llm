@@ -11,6 +11,10 @@ require 'event_stream_parser'
 module Durable
   module Llm
     module Providers
+      # Google Generative AI provider for accessing Gemini language models.
+      #
+      # Provides completion, embedding, and streaming capabilities with proper
+      # error handling and response normalization for Google's Generative Language API.
       class Google < Durable::Llm::Providers::Base
         BASE_URL = 'https://generativelanguage.googleapis.com'
 
@@ -206,6 +210,10 @@ module Durable
           "#{response.status} Error: #{message}"
         end
 
+        # Response object for Google Generative AI API responses.
+        #
+        # Wraps the raw response and provides a consistent interface for accessing
+        # candidate content and metadata.
         class GoogleResponse
           attr_reader :raw_response
 
@@ -222,6 +230,9 @@ module Durable
           end
         end
 
+        # Represents a single candidate choice in a Google response.
+        #
+        # Contains the message content from the candidate.
         class GoogleChoice
           attr_reader :message
 
@@ -234,6 +245,9 @@ module Durable
           end
         end
 
+        # Represents a message in a Google conversation.
+        #
+        # Messages contain text content extracted from parts.
         class GoogleMessage
           attr_reader :content
 
@@ -246,6 +260,9 @@ module Durable
           end
         end
 
+        # Response object for streaming Google Generative AI chunks.
+        #
+        # Wraps individual chunks from the streaming response.
         class GoogleStreamResponse
           attr_reader :choices
 
@@ -258,6 +275,9 @@ module Durable
           end
         end
 
+        # Represents a single choice in a streaming Google response chunk.
+        #
+        # Contains the delta (incremental content) for the choice.
         class GoogleStreamChoice
           attr_reader :delta
 
@@ -270,6 +290,9 @@ module Durable
           end
         end
 
+        # Represents the incremental content delta in a streaming response.
+        #
+        # Contains the text content of the delta.
         class GoogleStreamDelta
           attr_reader :content
 
@@ -282,6 +305,9 @@ module Durable
           end
         end
 
+        # Response object for Google embedding API responses.
+        #
+        # Wraps embedding data and provides array access to the vector representation.
         class GoogleEmbeddingResponse
           attr_reader :embedding
 

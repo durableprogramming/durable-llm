@@ -63,7 +63,6 @@ response = client.chat(
     { role: 'user', content: 'What is Ruby?' }
   ]
 )
-
 puts response.choices.first.message.content
 ```
 
@@ -140,12 +139,21 @@ export DLLM__GOOGLE__API_KEY=your-google-key
 Configure API keys and settings in your code:
 
 ```ruby
+# Environment variables (recommended)
+# export DLLM__OPENAI__API_KEY=your-openai-key
+# export DLLM__ANTHROPIC__API_KEY=your-anthropic-key
+
+# Or configure programmatically
 Durable::Llm.configure do |config|
   config.openai.api_key = 'sk-...'
   config.anthropic.api_key = 'sk-ant-...'
   config.google.api_key = 'your-google-key'
   config.cohere.api_key = 'your-cohere-key'
 end
+
+# Create clients with automatic configuration
+client = Durable::Llm.new(:openai)  # Uses configured API key
+client = Durable::Llm.new(:anthropic, model: 'claude-3-sonnet-20240229')
 ```
 
 ### Per-Client Configuration
@@ -264,49 +272,6 @@ response = client.embed(
 embeddings = response.data.map(&:embedding)
 ```
 
-## Error Handling
-
-Durable-LLM provides a comprehensive hierarchy of error classes for precise error handling:
-
-```ruby
-begin
-  response = client.completion(messages: [...])
-rescue Durable::Llm::AuthenticationError => e
-  puts "Invalid API key: #{e.message}"
-rescue Durable::Llm::RateLimitError => e
-  puts "Rate limit exceeded, try again later: #{e.message}"
-rescue Durable::Llm::InvalidRequestError => e
-  puts "Invalid request parameters: #{e.message}"
-rescue Durable::Llm::ModelNotFoundError => e
-  puts "Model not found: #{e.message}"
-rescue Durable::Llm::TimeoutError => e
-  puts "Request timed out: #{e.message}"
-rescue Durable::Llm::ServerError => e
-  puts "Provider server error: #{e.message}"
-rescue Durable::Llm::NetworkError => e
-  puts "Network connectivity issue: #{e.message}"
-rescue Durable::Llm::Error => e
-  puts "General LLM error: #{e.message}"
-end
-```
-
-### Error Types
-
-- `Durable::Llm::Error` - Base error class for all LLM errors
-- `Durable::Llm::APIError` - Generic API error
-- `Durable::Llm::AuthenticationError` - Invalid or missing API key
-- `Durable::Llm::RateLimitError` - Rate limit exceeded
-- `Durable::Llm::InvalidRequestError` - Invalid request parameters
-- `Durable::Llm::ModelNotFoundError` - Requested model not found
-- `Durable::Llm::ResourceNotFoundError` - Resource not found
-- `Durable::Llm::TimeoutError` - Request timeout
-- `Durable::Llm::ServerError` - Provider server error
-- `Durable::Llm::InsufficientQuotaError` - Insufficient account quota
-- `Durable::Llm::InvalidResponseError` - Malformed response
-- `Durable::Llm::NetworkError` - Network connectivity issue
-- `Durable::Llm::StreamingError` - Streaming-specific error
-- `Durable::Llm::ConfigurationError` - Configuration problem
-- `Durable::Llm::UnsupportedProviderError` - Provider not supported
 
 ## CLI Tool
 

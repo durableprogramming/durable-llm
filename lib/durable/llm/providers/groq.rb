@@ -11,6 +11,10 @@ require 'event_stream_parser'
 module Durable
   module Llm
     module Providers
+      # Groq provider for accessing language models via OpenAI-compatible API.
+      #
+      # Provides completion, embedding, and streaming capabilities with proper
+      # error handling and response normalization.
       class Groq < Durable::Llm::Providers::Base
         BASE_URL = 'https://api.groq.com/openai/v1'
 
@@ -144,6 +148,10 @@ module Durable
           end
         end
 
+        # Response object for Groq chat API responses.
+        #
+        # Wraps the raw response and provides a consistent interface for accessing
+        # message content, embeddings, and metadata.
         class GroqResponse
           attr_reader :raw_response
 
@@ -172,6 +180,9 @@ module Durable
           end
         end
 
+        # Represents a single choice in a Groq response.
+        #
+        # Contains the message and finish reason for the choice.
         class GroqChoice
           attr_reader :message, :finish_reason
 
@@ -185,6 +196,9 @@ module Durable
           end
         end
 
+        # Represents a message in a Groq conversation.
+        #
+        # Messages have a role (user, assistant, system) and text content.
         class GroqMessage
           attr_reader :role, :content
 
@@ -198,6 +212,9 @@ module Durable
           end
         end
 
+        # Response object for streaming Groq chat chunks.
+        #
+        # Wraps individual chunks from the Server-Sent Events stream.
         class GroqStreamResponse
           attr_reader :choices
 
@@ -210,6 +227,9 @@ module Durable
           end
         end
 
+        # Represents a single choice in a streaming Groq response chunk.
+        #
+        # Contains the delta (incremental content) and finish reason for the choice.
         class GroqStreamChoice
           attr_reader :delta, :finish_reason
 
@@ -224,6 +244,9 @@ module Durable
           end
         end
 
+        # Represents the incremental content delta in a streaming response.
+        #
+        # Contains the role and text content of the delta.
         class GroqStreamDelta
           attr_reader :role, :content
 
@@ -237,6 +260,9 @@ module Durable
           end
         end
 
+        # Response object for Groq embedding API responses.
+        #
+        # Wraps embedding data and provides array access to the vector representation.
         class GroqEmbeddingResponse
           attr_reader :embedding
 
