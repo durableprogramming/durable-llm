@@ -13,4 +13,14 @@ require 'rubocop/rake_task'
 
 RuboCop::RakeTask.new
 
+begin
+  require 'yard'
+  YARD::Rake::YardocTask.new(:doc) do |t|
+    t.files = ['lib/**/*.rb']
+    t.options = ['--markup', 'markdown', '--output-dir', 'doc']
+  end
+rescue LoadError
+  # YARD not available
+end
+
 task default: %i[test rubocop]

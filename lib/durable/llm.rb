@@ -21,7 +21,7 @@
 #
 # # Create a client and make a request
 # client = Durable::Llm.new(:openai, model: 'gpt-4')
-# response = client.quick_complete('Hello, world!')
+# response = client.complete('Hello, world!')
 # puts response # => "Hello! How can I help you today?"
 # ```
 #
@@ -91,7 +91,7 @@ module Durable
   #   end
   #
   #   client = Durable::Llm.new(:openai)
-  #   response = client.quick_complete('Hello!')
+  #   response = client.complete('Hello!')
   #
   # @see Durable::Llm::Client
   # @see Durable::Llm::Configuration
@@ -155,6 +155,73 @@ module Durable
       self.configuration ||= Configuration.new
       yield(configuration)
     end
+
+    # Creates a quick completion with minimal setup.
+    #
+    # This is a convenience method for one-off completions that automatically
+    # creates a client, performs the completion, and returns the text result.
+    #
+    # @param text [String] The input text to complete
+    # @param provider [Symbol] The provider to use (default: :openai)
+    # @param model [String] The model to use (required)
+    # @param options [Hash] Additional options for the client
+    # @return [String] The completion text
+    # @raise [ArgumentError] If required parameters are missing
+    # @example Quick completion with OpenAI
+    #   result = Durable::Llm.complete('What is Ruby?', model: 'gpt-4')
+    #   puts result
+    # @example Quick completion with Anthropic
+    #   result = Durable::Llm.complete('Explain AI', provider: :anthropic, model: 'claude-3-opus-20240229')
+    #   puts result
+    def self.complete(text, provider: :openai, model: nil, **options)
+      raise ArgumentError, 'text is required' if text.nil? || text.to_s.strip.empty?
+      raise ArgumentError, 'model is required' if model.nil? || model.to_s.strip.empty?
+
+      client = new(provider, options.merge(model: model))
+      client.complete(text)
+    end
+
+    # Creates a chat completion with minimal setup.
+    #
+    # This is a convenience method for quick chat interactions that automatically
+    # creates a client and performs the chat completion.
+    #
+    # @param messages [Array<Hash>] Array of message hashes with :role and :content
+    # @param provider [Symbol] The provider to use (default: :openai)
+    # @param model [String] The model to use (required)
+    # @param options [Hash] Additional options for the client and request
+    # @return [Object] The chat response object
+    # @raise [ArgumentError] If required parameters are missing
+    # @example Simple chat
+    #   response = Durable::Llm.chat(
+    #     [{ role: 'user', content: 'Hello!' }],
+    #     model: 'gpt-4'
+    #   )
+    #   puts response.choices.first.message.content
+    def self.chat(messages, provider: :openai, model: nil, **options)
+      raise ArgumentError, 'messages are required' if messages.nil? || messages.empty?
+      raise ArgumentError, 'model is required' if model.nil? || model.to_s.strip.empty?
+
+      request_keys = %i[temperature max_tokens top_p frequency_penalty presence_penalty]
+      request_params = options.select { |k, _| request_keys.include?(k) }
+      client_options = options.reject { |k, _| request_keys.include?(k) }
+
+      client = new(provider, client_options.merge(model: model))
+      client.chat(messages: messages, **request_params)
+    end
+
+    # Lists available models for a provider.
+    #
+    # @param provider [Symbol] The provider name (default: :openai)
+    # @param options [Hash] Provider options (e.g., api_key)
+    # @return [Array<String>] List of available model IDs
+    # @example List OpenAI models
+    #   models = Durable::Llm.models(:openai)
+    #   puts models.inspect
+    def self.models(provider = :openai, **options)
+      client = new(provider, options)
+      client.provider.models
+    end
   end
 end
 
@@ -163,5 +230,11 @@ end
 
 require 'durable/llm/providers'
 require 'durable/llm/client'
+require 'durable/llm/response_helpers'
+require 'durable/llm/provider_utilities'
+
+# Load global convenience functions for easier access
+# Users can skip this by requiring 'durable/llm/core' instead of 'durable/llm'
+require 'durable/llm/convenience' unless ENV['DLLM_NO_CONVENIENCE']
 
 # Copyright (c) 2025 Durable Programming, LLC. All rights reserved.

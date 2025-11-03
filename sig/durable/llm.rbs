@@ -69,7 +69,8 @@ module Durable
 
       def initialize: (Symbol | String provider_name, ?Hash[Symbol | String, untyped] options) -> void
       def default_params: () -> Hash[Symbol, String?]
-      def quick_complete: (String text, ?Hash[Symbol, untyped] _opts) -> String
+      def complete: (String text, ?Hash[Symbol, untyped] _opts) -> String
+      alias quick_complete complete
       def completion: (?Hash[Symbol, untyped] params) -> untyped
       def chat: (?Hash[Symbol, untyped] params) -> untyped
       def embed: (?Hash[Symbol, untyped] params) -> untyped

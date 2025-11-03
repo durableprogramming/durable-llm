@@ -20,6 +20,7 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
+        bundler: 2.7.1
     - name: Install dependencies
       run: bundle install
     - name: Run tests

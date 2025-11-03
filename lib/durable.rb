@@ -16,7 +16,7 @@
 #   end
 #
 #   client = Durable::Llm.new(:openai)
-#   response = client.quick_complete('Hello!')
+#   response = client.complete('Hello!')
 #
 # @see Durable::Llm
 

@@ -21,24 +21,31 @@ Gem::Specification.new do |spec|
   spec.metadata['changelog_uri'] = 'https://github.com/durableprogramming/durable-llm/blob/main/CHANGELOG.md'
 
   spec.files = Dir.chdir(__dir__) do
-    `git ls-files -z`.split("\x0").reject do |f|
-      (File.expand_path(f) == __FILE__) || f.start_with?(*%w[bin/ test/ spec/ features/ .git .circleci appveyor])
+    if system('git rev-parse --git-dir > /dev/null 2>&1')
+      `git ls-files -z`.split("\x0").reject do |f|
+        (File.expand_path(f) == __FILE__) || f.start_with?(*%w[bin/ test/ spec/ features/ .git .circleci appveyor])
+      end
+    else
+      Dir.glob('**/*', File::FNM_DOTMATCH).reject do |f|
+        File.directory?(f) || (File.expand_path(f) == __FILE__) || f.start_with?(*%w[bin/ test/ spec/ features/ .git .circleci appveyor])
+      end
     end
   end
   spec.bindir = 'exe'
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'event_stream_parser', '~> 1.0'
-  spec.add_dependency 'faraday', '> 1.0'
-  spec.add_dependency 'highline', '~> 3.1'
-  spec.add_dependency 'json', '~> 2.6'
-  spec.add_dependency 'thor', '~> 1.3'
-  spec.add_dependency 'zeitwerk', '~> 2.6'
+  spec.add_dependency 'event_stream_parser', '~> 1.0', '>= 1.0.0'
+  spec.add_dependency 'faraday', '>= 1.0', '< 3.0'
+  spec.add_dependency 'highline', '~> 3.1', '>= 3.1.0'
+  spec.add_dependency 'json', '~> 2.6', '>= 2.6.0'
+  spec.add_dependency 'thor', '~> 1.3', '>= 1.3.0'
+  spec.add_dependency 'zeitwerk', '~> 2.6', '>= 2.6.0'
 
   spec.add_development_dependency 'dotenv', '~> 2.8'
   spec.add_development_dependency 'minitest', '~> 5.0'
   spec.add_development_dependency 'mocha', '~> 2.1'
   spec.add_development_dependency 'rubocop', '~> 1.0'
   spec.add_development_dependency 'vcr', '~> 6.0'
+  spec.add_development_dependency 'yard', '~> 0.9'
 end

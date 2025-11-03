@@ -83,6 +83,16 @@ module Durable
         end
       end
 
+      # Returns a list of all available provider names as strings.
+      #
+      # Alias for providers that returns strings instead of symbols, useful for
+      # display purposes in error messages and documentation.
+      #
+      # @return [Array<String>] Array of provider names
+      def self.available_providers
+        providers.map(&:to_s).sort
+      end
+
       # Returns a flat list of all model IDs across all providers.
       #
       # This method aggregates model IDs from all available providers by calling

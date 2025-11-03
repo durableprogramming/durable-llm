@@ -5,6 +5,6 @@ require 'durable/llm/client'
 
 client = Durable::Llm::Client.new(:openai, model: 'gpt-4')
 
-response = client.quick_complete("What's the capital of California?")
+response = client.complete("What's the capital of California?")
 
 puts response
