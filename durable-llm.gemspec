@@ -39,6 +39,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'faraday', '>= 1.0', '< 3.0'
   spec.add_dependency 'highline', '~> 3.1', '>= 3.1.0'
   spec.add_dependency 'json', '~> 2.6', '>= 2.6.0'
+  spec.add_dependency 'ostruct', '~> 0.6.0'
   spec.add_dependency 'thor', '~> 1.3', '>= 1.3.0'
   spec.add_dependency 'zeitwerk', '~> 2.6', '>= 2.6.0'
 
