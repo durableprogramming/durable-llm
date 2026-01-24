@@ -115,9 +115,11 @@ module Durable
             @providers[provider.to_sym].api_key = config_data[provider.to_s]
           end
         rescue JSON::ParserError => e
-          warn "Error parsing Datasette LLM configuration file: #{e.message}"
+          warn "Unable to parse Datasette LLM configuration file at #{config_file}"
+          warn "The file may be corrupted. Please check the JSON format."
         rescue StandardError => e
-          warn "Error loading Datasette LLM configuration: #{e.message}"
+          warn "Could not load Datasette LLM configuration: #{e.message}"
+          warn "Continuing with environment variable and programmatic configuration."
         end
       end
 

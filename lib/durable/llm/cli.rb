@@ -76,7 +76,14 @@ module Durable
         model = options[:model] || 'gpt-3.5-turbo'
         provider_class = Durable::Llm::Providers.model_id_to_provider(model)
 
-        raise "no provider found for model '#{model}'" if provider_class.nil?
+        if provider_class.nil?
+          warn "Model '#{model}' is not recognized."
+          warn "\nTo see available models, run:"
+          warn "  dllm models"
+          warn "\nOr specify a model with -m:"
+          warn "  dllm prompt 'Your text' -m gpt-4"
+          exit 1
+        end
 
         provider_name = provider_class.name.split('::').last.downcase.to_sym
         client = Durable::Llm::Client.new(provider_name)
@@ -118,11 +125,28 @@ module Durable
             'created_at' => conversation ? conversation['created_at'] : Time.now.iso8601
           }
           save_conversation(conversation_data)
+        rescue Durable::Llm::AuthenticationError => e
+          warn "Authentication failed: #{e.message}"
+          warn "\nPlease check your API key configuration."
+          warn "You can set it using environment variables:"
+          warn "  export DLLM__#{provider_name.to_s.upcase}__API_KEY=your-key-here"
+          warn "\nOr configure programmatically in your code."
+          exit 1
+        rescue Durable::Llm::RateLimitError => e
+          warn "Rate limit exceeded: #{e.message}"
+          warn "\nPlease wait a moment and try again."
+          exit 1
         rescue Durable::Llm::Error => e
-          warn "API Error: #{e.message}"
+          warn "API request failed: #{e.message}"
+          warn "\nIf this persists, try:"
+          warn "  - Check your internet connection"
+          warn "  - Verify your API key is valid"
+          warn "  - Check the provider's status page"
           exit 1
         rescue StandardError => e
-          warn "Unexpected error: #{e.message}"
+          warn "An unexpected error occurred: #{e.message}"
+          warn "\nPlease report this issue at:"
+          warn "  https://github.com/durableprogramming/durable-llm/issues"
           exit 1
         end
       end
@@ -148,7 +172,14 @@ module Durable
         model = options[:model] || 'gpt-3.5-turbo'
         provider_class = Durable::Llm::Providers.model_id_to_provider(model)
 
-        raise "no provider found for model '#{model}'" if provider_class.nil? || provider_class.name.nil?
+        if provider_class.nil? || provider_class.name.nil?
+          warn "Model '#{model}' is not recognized."
+          warn "\nTo see available models, run:"
+          warn "  dllm models"
+          warn "\nOr specify a model with -m:"
+          warn "  dllm chat -m claude-3-opus-20240229"
+          exit 1
+        end
 
         provider_name = provider_class.name.split('::').last.downcase.to_sym
         client = Durable::Llm::Client.new(provider_name)
@@ -207,11 +238,22 @@ module Durable
               'created_at' => conversation ? conversation['created_at'] : Time.now.iso8601
             }
             conversation_id = save_conversation(conversation_data)
+          rescue Durable::Llm::AuthenticationError => e
+            cli.say("Authentication failed: #{e.message}")
+            cli.say("\nPlease check your API key configuration.")
+            cli.say("Set it with: export DLLM__#{provider_name.to_s.upcase}__API_KEY=your-key")
+            next
+          rescue Durable::Llm::RateLimitError => e
+            cli.say("Rate limit exceeded: #{e.message}")
+            cli.say("Please wait a moment before sending another message.")
+            next
           rescue Durable::Llm::Error => e
-            cli.say("API Error: #{e.message}")
+            cli.say("API request failed: #{e.message}")
+            cli.say("Check your connection and API key, then try again.")
             next
           rescue StandardError => e
-            cli.say("Unexpected error: #{e.message}")
+            cli.say("An unexpected error occurred: #{e.message}")
+            cli.say("Please report this at: https://github.com/durableprogramming/durable-llm/issues")
             next
           end
         end
@@ -225,12 +267,22 @@ module Durable
       option :options, type: :boolean, desc: 'Show model options'
       def models
         cli = HighLine.new
-        cli.say('Available models:')
+        cli.say('Fetching available models...')
+        cli.say('')
 
-        Durable::Llm::Providers.providers.each do |provider_sym|
+        providers = Durable::Llm::Providers.providers
+        total = providers.length
+        current = 0
+
+        providers.each do |provider_sym|
+          current += 1
+          print "\rLoading models... #{current}/#{total} providers"
+          $stdout.flush
+
           provider_class = Durable::Llm::Providers.provider_class_for(provider_sym)
           begin
             provider_models = provider_class.models
+            print "\r#{' ' * 50}\r" # Clear progress line
             cli.say("#{provider_sym.to_s.capitalize}:")
             provider_models.each do |model|
               cli.say("  #{model}")
@@ -239,10 +291,17 @@ module Durable
                 cli.say("    Options: #{provider_options.join(', ')}")
               end
             end
+          rescue Durable::Llm::AuthenticationError => e
+            print "\r#{' ' * 50}\r" # Clear progress line
+            cli.say("#{provider_sym.to_s.capitalize}: Authentication required")
+            cli.say("  Set API key: export DLLM__#{provider_sym.to_s.upcase}__API_KEY=your-key")
           rescue StandardError => e
-            cli.say("#{provider_sym.to_s.capitalize}: Error loading models - #{e.message}")
+            print "\r#{' ' * 50}\r" # Clear progress line
+            cli.say("#{provider_sym.to_s.capitalize}: Unable to load models (#{e.class.name})")
           end
         end
+
+        print "\r#{' ' * 50}\r" # Clear progress line
       end
 
       # List all saved conversations

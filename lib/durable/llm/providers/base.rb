@@ -236,7 +236,9 @@ module Durable
           return if value.nil? # Allow nil values (will use provider defaults)
           return if value >= min && value <= max
 
-          raise ArgumentError, "#{param_name} must be between #{min} and #{max}, got #{value}"
+          raise ArgumentError,
+                "The value #{value} for '#{param_name}' is outside the allowed range.\n" \
+                "Please use a value between #{min} and #{max}."
         end
 
         # Validates that the API key is configured
@@ -249,9 +251,14 @@ module Durable
           return unless @api_key.nil? || @api_key.to_s.strip.empty?
 
           provider_name = self.class.name.split('::').last
+          env_var = "DLLM__#{provider_name.upcase}__API_KEY"
+
           raise Durable::Llm::AuthenticationError,
-                "API key not configured for #{provider_name}. " \
-                "Set it via Durable::Llm.configure or environment variable."
+                "API key required for #{provider_name}.\n\n" \
+                "Set it using one of these methods:\n" \
+                "  1. Environment variable: export #{env_var}=your-key\n" \
+                "  2. Configuration block: Durable::Llm.configure { |c| c.#{provider_name.downcase}.api_key = 'your-key' }\n" \
+                "  3. Client initialization: Durable::Llm.new(:#{provider_name.downcase}, api_key: 'your-key')"
         end
 
         # Sanitizes and normalizes request options

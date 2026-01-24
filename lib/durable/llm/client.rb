@@ -41,10 +41,17 @@ module Durable
       #   client = Durable::Llm::Client.new(:anthropic, model: 'claude-3-opus-20240229')
       def initialize(provider_name, options = {})
         if provider_name.nil? || provider_name.to_s.strip.empty?
-          raise ArgumentError, 'provider_name cannot be nil or empty. Supported providers: ' \
-                               "#{Durable::Llm::Providers.available_providers.join(', ')}"
+          available = Durable::Llm::Providers.available_providers.join(', ')
+          raise ArgumentError,
+                "Please specify a provider name.\n\n" \
+                "Available providers: #{available}\n\n" \
+                "Example: Durable::Llm.new(:openai, model: 'gpt-4')"
         end
-        raise ArgumentError, 'options must be a Hash' unless options.is_a?(Hash)
+        unless options.is_a?(Hash)
+          raise ArgumentError,
+                "Options must be a Hash.\n" \
+                "Example: Durable::Llm.new(:openai, model: 'gpt-4', api_key: 'sk-...')"
+        end
 
         @model = options.delete('model') || options.delete(:model) if options.key?('model') || options.key?(:model)
 
@@ -75,27 +82,35 @@ module Durable
       #   puts response # => "The capital of France is Paris."
       def complete(text, _opts = {})
         if text.nil? || text.to_s.strip.empty?
-          raise ArgumentError, 'text cannot be nil or empty. Provide a non-empty string for completion.'
+          raise ArgumentError,
+                "Please provide text to complete.\n" \
+                "Example: client.complete('What is the capital of France?')"
         end
 
         response = completion(process_params(messages: [{ role: 'user', content: text }]))
 
         choice = response.choices.first
         unless choice
-          raise IndexError, 'No completion choices returned from the API. This may indicate an ' \
-                            'API error or invalid request parameters.'
+          raise IndexError,
+                "The API returned no completion choices.\n" \
+                "This may indicate an issue with your request parameters or the API service.\n" \
+                "Please verify your model and parameters are correct."
         end
 
         message = choice.message
         unless message
-          raise NoMethodError, 'Response choice has no message. The API response format may be ' \
-                               'unexpected or the provider may have changed their response structure.'
+          raise NoMethodError,
+                "The API response format was unexpected (no message in choice).\n" \
+                "The provider may have changed their API format.\n" \
+                "Please report this issue at: https://github.com/durableprogramming/durable-llm/issues"
         end
 
         content = message.content
         unless content
-          raise NoMethodError, 'Response message has no content. This may occur if the model ' \
-                               'refused to respond or if content filtering was applied.'
+          raise NoMethodError,
+                "The model did not return any content.\n" \
+                "This may occur if the model refused to respond or content was filtered.\n" \
+                "Try adjusting your prompt or checking the provider's content policy."
         end
 
         content
@@ -122,7 +137,11 @@ module Durable
       #     temperature: 0.7
       #   )
       def completion(params = {})
-        raise ArgumentError, 'params must be a Hash' unless params.is_a?(Hash)
+        unless params.is_a?(Hash)
+          raise ArgumentError,
+                "Parameters must be a Hash.\n" \
+                "Example: client.completion(messages: [{ role: 'user', content: 'Hello' }])"
+        end
 
         @provider.completion(process_params(params))
       end
@@ -139,7 +158,11 @@ module Durable
       # @raise [Durable::Llm::APIError] If the API request fails
       # @see #completion
       def chat(params = {})
-        raise ArgumentError, 'params must be a Hash' unless params.is_a?(Hash)
+        unless params.is_a?(Hash)
+          raise ArgumentError,
+                "Parameters must be a Hash.\n" \
+                "Example: client.chat(messages: [{ role: 'user', content: 'Hello' }])"
+        end
 
         @provider.completion(process_params(params))
       end
@@ -160,13 +183,21 @@ module Durable
       #     input: 'Hello, world!'
       #   )
       def embed(params = {})
-        raise ArgumentError, 'params must be a Hash' unless params.is_a?(Hash)
+        unless params.is_a?(Hash)
+          raise ArgumentError,
+                "Parameters must be a Hash.\n" \
+                "Example: client.embed(model: 'text-embedding-ada-002', input: 'Hello')"
+        end
 
         @provider.embedding(**process_params(params))
       rescue NotImplementedError
         provider_name = @provider.class.name.split('::').last
-        raise NotImplementedError, "#{provider_name} does not support embeddings. " \
-                                    'Try using a provider like OpenAI that offers embedding models.'
+        raise NotImplementedError,
+              "#{provider_name} does not support embeddings.\n\n" \
+              "Providers with embedding support:\n" \
+              "  - OpenAI (text-embedding-ada-002, text-embedding-3-small, text-embedding-3-large)\n" \
+              "  - Cohere (embed-english-v3.0, embed-multilingual-v3.0)\n\n" \
+              "Example: Durable::Llm.new(:openai).embed(model: 'text-embedding-ada-002', input: 'text')"
       end
 
       # Performs a streaming completion request
@@ -187,16 +218,25 @@ module Durable
       #     print chunk.choices.first.delta.content
       #   end
       def stream(params = {}, &block)
-        raise ArgumentError, 'params must be a Hash' unless params.is_a?(Hash)
+        unless params.is_a?(Hash)
+          raise ArgumentError,
+                "Parameters must be a Hash.\n" \
+                "Example: client.stream(messages: [{ role: 'user', content: 'Hello' }]) { |chunk| print chunk }"
+        end
         unless block_given?
-          raise ArgumentError, 'block required for streaming. Use: client.stream(params) { |chunk| ... }'
+          raise ArgumentError,
+                "Streaming requires a block to process chunks.\n" \
+                "Example: client.stream(messages: [...]) { |chunk| print chunk }"
         end
 
         @provider.stream(process_params(params), &block)
       rescue NotImplementedError
         provider_name = @provider.class.name.split('::').last
-        raise NotImplementedError, "#{provider_name} does not support streaming. " \
-                                    'Try using completion() or chat() instead.'
+        raise NotImplementedError,
+              "#{provider_name} does not support streaming.\n" \
+              "Use the non-streaming methods instead:\n" \
+              "  - client.completion(messages: [...])\n" \
+              "  - client.chat(messages: [...])"
       end
 
       # Checks if the provider supports streaming
