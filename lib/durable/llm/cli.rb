@@ -77,12 +77,7 @@ module Durable
         provider_class = Durable::Llm::Providers.model_id_to_provider(model)
 
         if provider_class.nil?
-          warn "Model '#{model}' is not recognized."
-          warn "\nTo see available models, run:"
-          warn "  dllm models"
-          warn "\nOr specify a model with -m:"
-          warn "  dllm prompt 'Your text' -m gpt-4"
-          exit 1
+          raise RuntimeError, "no provider found for model '#{model}'"
         end
 
         provider_name = provider_class.name.split('::').last.downcase.to_sym

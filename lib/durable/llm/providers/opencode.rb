@@ -2,11 +2,10 @@
 
 # This file implements the OpenCode Zen provider for accessing OpenCode Zen's language models through their API, providing completion, embedding, and streaming capabilities with authentication handling, error management, and response normalization.
 
-require 'faraday'
+require 'durable/llm/http_client'
 require 'json'
 require 'durable/llm/errors'
 require 'durable/llm/providers/base'
-require 'event_stream_parser'
 
 module Durable
   module Llm
@@ -30,11 +29,7 @@ module Durable
         def initialize(api_key: nil)
           super
           @api_key = api_key || default_api_key
-          @conn = Faraday.new(url: BASE_URL) do |faraday|
-            faraday.request :json
-            faraday.response :json
-            faraday.adapter Faraday.default_adapter
-          end
+          @conn = Durable::Llm::HttpClient.new(url: BASE_URL)
         end
 
         def completion(options)
@@ -66,54 +61,21 @@ module Durable
         def self.stream?
           true
         end
-
-        def stream(options)
+        def stream(options, &block)
           options[:stream] = true
+          options['temperature'] = options['temperature'].to_f if options['temperature']
 
-          response = @conn.post('chat/completions') do |req|
-            req.headers['Authorization'] = "Bearer #{@api_key}"
-            req.headers['Accept'] = 'text/event-stream'
-
-            options['temperature'] = options['temperature'].to_f if options['temperature']
-
-            req.body = options
-
-            user_proc = proc do |chunk, _size, _total|
-              yield OpencodeStreamResponse.new(chunk)
-            end
-
-            req.options.on_data = to_json_stream(user_proc: user_proc)
+          response = @conn.post_stream('chat/completions') do |stream|
+            stream.on_chunk { |chunk| block.call(OpencodeStreamResponse.new(chunk)) }
+            stream.headers['Authorization'] = "Bearer #{@api_key}"
+            stream.headers['Accept'] = 'text/event-stream'
+            stream.body = options
           end
 
           handle_response(response)
         end
 
         private
-
-        # CODE-FROM: ruby-openai @ https://github.com/alexrudall/ruby-openai/blob/main/lib/openai/http.rb
-        # MIT License: https://github.com/alexrudall/ruby-openai/blob/main/LICENSE.md
-        def to_json_stream(user_proc:)
-          parser = EventStreamParser::Parser.new
-
-          proc do |chunk, _bytes, env|
-            if env && env.status != 200
-              raise_error = Faraday::Response::RaiseError.new
-              raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
-            end
-
-            parser.feed(chunk) do |_type, data|
-              user_proc.call(JSON.parse(data)) unless data == '[DONE]'
-            end
-          end
-        end
-
-        def try_parse_json(maybe_json)
-          JSON.parse(maybe_json)
-        rescue JSON::ParserError
-          maybe_json
-        end
-
-        # END-CODE-FROM
 
         def handle_response(response, response_class = OpencodeResponse)
           case response.status

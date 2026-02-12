@@ -2,11 +2,10 @@
 
 # Azure OpenAI provider implementation for Durable LLM
 
-require 'faraday'
+require 'durable/llm/http_client'
 require 'json'
 require 'durable/llm/errors'
 require 'durable/llm/providers/base'
-require 'event_stream_parser'
 
 module Durable
   module Llm
@@ -41,9 +40,8 @@ module Durable
           base_url = format(BASE_URL_TEMPLATE, @resource_name, model)
           conn = build_connection(base_url)
 
-          response = conn.post('chat/completions') do |req|
+          response = conn.post("chat/completions?api-version=#{@api_version}") do |req|
             req.headers['api-key'] = @api_key
-            req.params['api-version'] = @api_version
             req.body = options
           end
 
@@ -54,9 +52,8 @@ module Durable
           base_url = format(BASE_URL_TEMPLATE, @resource_name, model)
           conn = build_connection(base_url)
 
-          response = conn.post('embeddings') do |req|
+          response = conn.post("embeddings?api-version=#{@api_version}") do |req|
             req.headers['api-key'] = @api_key
-            req.params['api-version'] = @api_version
             req.body = { input: input, **options }
           end
 
@@ -133,8 +130,7 @@ module Durable
         def self.stream?
           true
         end
-
-        def stream(options)
+        def stream(options, &block)
           model = options[:model] || options['model']
           base_url = format(BASE_URL_TEMPLATE, @resource_name, model)
           conn = build_connection(base_url)
@@ -142,62 +138,21 @@ module Durable
           options[:stream] = true
           options['temperature'] = options['temperature'].to_f if options['temperature']
 
-          response = conn.post('chat/completions') do |req|
-            setup_stream_request(req, options) do |chunk|
-              yield AzureOpenaiStreamResponse.new(chunk)
-            end
+          response = conn.post_stream("chat/completions?api-version=#{@api_version}") do |stream|
+            stream.on_chunk { |chunk| block.call(AzureOpenaiStreamResponse.new(chunk)) }
+            stream.headers['api-key'] = @api_key
+            stream.headers['Accept'] = 'text/event-stream'
+            stream.body = options
           end
 
           handle_response(response)
         end
 
-        def setup_stream_request(req, options)
-          req.headers['api-key'] = @api_key
-          req.params['api-version'] = @api_version
-          req.headers['Accept'] = 'text/event-stream'
-          req.body = options
-
-          user_proc = proc do |chunk, _size, _total|
-            yield chunk
-          end
-
-          req.options.on_data = to_json_stream(user_proc: user_proc)
-        end
-
         private
 
         def build_connection(base_url)
-          Faraday.new(url: base_url) do |faraday|
-            faraday.request :json
-            faraday.response :json
-            faraday.adapter Faraday.default_adapter
-          end
+          Durable::Llm::HttpClient.new(url: base_url)
         end
-
-        # CODE-FROM: ruby-openai @ https://github.com/alexrudall/ruby-openai/blob/main/lib/openai/http.rb
-        # MIT License: https://github.com/alexrudall/ruby-openai/blob/main/LICENSE.md
-        def to_json_stream(user_proc:)
-          parser = EventStreamParser::Parser.new
-
-          proc do |chunk, _bytes, env|
-            if env && env.status != 200
-              raise_error = Faraday::Response::RaiseError.new
-              raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
-            end
-
-            parser.feed(chunk) do |_type, data|
-              user_proc.call(JSON.parse(data)) unless data == '[DONE]'
-            end
-          end
-        end
-
-        def try_parse_json(maybe_json)
-          JSON.parse(maybe_json)
-        rescue JSON::ParserError
-          maybe_json
-        end
-
-        # END-CODE-FROM
 
         def handle_response(response, response_class = AzureOpenaiResponse)
           case response.status

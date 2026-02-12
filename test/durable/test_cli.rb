@@ -281,7 +281,8 @@ class TestCLI < Minitest::Test
     openai_mock.expects(:models).returns(['gpt-3.5-turbo', 'gpt-4'])
     anthropic_mock.expects(:models).returns(['claude-2.1', 'claude-instant'])
 
-    cli_mock.expects(:say).with('Available models:')
+    cli_mock.expects(:say).with('Fetching available models...')
+    cli_mock.expects(:say).with('')
     cli_mock.expects(:say).with('Openai:')
     cli_mock.expects(:say).with('  gpt-3.5-turbo')
     cli_mock.expects(:say).with('  gpt-4')
@@ -304,7 +305,8 @@ class TestCLI < Minitest::Test
     openai_mock.expects(:options).returns(%w[temperature max_tokens top_p frequency_penalty
                                              presence_penalty])
 
-    cli_mock.expects(:say).with('Available models:')
+    cli_mock.expects(:say).with('Fetching available models...')
+    cli_mock.expects(:say).with('')
     cli_mock.expects(:say).with('Openai:')
     cli_mock.expects(:say).with('  gpt-3.5-turbo')
     cli_mock.expects(:say).with('    Options: temperature, max_tokens, top_p, frequency_penalty, presence_penalty')

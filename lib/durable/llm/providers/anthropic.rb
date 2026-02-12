@@ -2,11 +2,10 @@
 
 # Anthropic provider for Claude models with completion and streaming support.
 
-require 'faraday'
+require 'durable/llm/http_client'
 require 'json'
 require 'durable/llm/errors'
 require 'durable/llm/providers/base'
-require 'event_stream_parser'
 
 module Durable
   module Llm
@@ -69,11 +68,7 @@ module Durable
           super()
           @api_key = api_key || default_api_key
 
-          @conn = Faraday.new(url: BASE_URL) do |faraday|
-            faraday.request :json
-            faraday.response :json
-            faraday.adapter Faraday.default_adapter
-          end
+          @conn = Durable::Llm::HttpClient.new(url: BASE_URL)
         end
 
         # Performs a completion request to Anthropic's messages API.
@@ -154,7 +149,7 @@ module Durable
         # @raise [Durable::Llm::RateLimitError] If rate limit is exceeded
         # @raise [Durable::Llm::InvalidRequestError] If request parameters are invalid
         # @raise [Durable::Llm::ServerError] If Anthropic's servers encounter an error
-        def stream(options)
+        def stream(options, &block)
           options = options.transform_keys(&:to_s)
           options['stream'] = true
 
@@ -169,56 +164,18 @@ module Durable
           request_body = options.merge('messages' => messages)
           request_body['system'] = system_message if system_message
 
-          response = @conn.post('/v1/messages') do |req|
-            req.headers['x-api-key'] = @api_key
-            req.headers['anthropic-version'] = '2023-06-01'
-            req.headers['Accept'] = 'text/event-stream'
-
-            req.body = request_body
-
-            user_proc = proc do |chunk, _size, _total|
-              yield AnthropicStreamResponse.new(chunk)
-            end
-
-            req.options.on_data = to_json_stream(user_proc: user_proc)
+          response = @conn.post_stream('/v1/messages') do |stream|
+            stream.on_chunk { |chunk| block.call(AnthropicStreamResponse.new(chunk)) }
+            stream.headers['x-api-key'] = @api_key
+            stream.headers['anthropic-version'] = '2023-06-01'
+            stream.headers['Accept'] = 'text/event-stream'
+            stream.body = request_body
           end
 
           handle_response(response)
         end
 
         private
-
-        # Converts JSON stream chunks to individual data objects for processing.
-        #
-        # This method handles Server-Sent Events from Anthropic's streaming API.
-        # It parses the event stream and yields individual JSON objects for each data chunk.
-        #
-        # @param user_proc [Proc] The proc to call with each parsed JSON object
-        # @return [Proc] A proc that can be used as Faraday's on_data callback
-        def to_json_stream(user_proc:)
-          parser = EventStreamParser::Parser.new
-
-          proc do |chunk, _bytes, env|
-            if env && env.status != 200
-              raise_error = Faraday::Response::RaiseError.new
-              raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
-            end
-
-            parser.feed(chunk) do |_type, data|
-              user_proc.call(JSON.parse(data)) unless data == '[DONE]'
-            end
-          end
-        end
-
-        # Attempts to parse a string as JSON, returning the string if parsing fails.
-        #
-        # @param maybe_json [String] The string that might be JSON
-        # @return [Hash, Array, String] The parsed JSON object or the original string
-        def try_parse_json(maybe_json)
-          JSON.parse(maybe_json)
-        rescue JSON::ParserError
-          maybe_json
-        end
 
         # Processes the API response and handles errors appropriately.
         #

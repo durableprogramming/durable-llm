@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
-require 'faraday'
+require 'durable/llm/http_client'
 require 'json'
-require 'event_stream_parser'
 require 'durable/llm/errors'
 require 'durable/llm/providers/base'
 
@@ -37,11 +36,7 @@ module Durable
         # @param api_key [String, nil] The API key to use. If nil, uses default_api_key
         def initialize(api_key: nil)
           super
-          @conn = Faraday.new(url: BASE_URL) do |faraday|
-            faraday.request :json
-            faraday.response :json
-            faraday.adapter Faraday.default_adapter
-          end
+          @conn = Durable::Llm::HttpClient.new(url: BASE_URL)
         end
 
         # Completes a chat conversation using the Together API.
@@ -94,57 +89,22 @@ module Durable
         #
         # @param options [Hash] The options for the streaming request
         # @yield [TogetherStreamResponse] Yields stream response chunks
-        def stream(options)
-          options = prepare_stream_options(options)
+        def stream(options, &block)
+          options = options.dup
+          options[:stream] = true
+          options['temperature'] = options['temperature'].to_f if options['temperature']
 
-          @conn.post('chat/completions') do |req|
-            req.headers['Authorization'] = "Bearer #{@api_key}"
-            req.headers['Accept'] = 'text/event-stream'
-            req.body = options
-            req.options.on_data = stream_proc { |chunk| yield TogetherStreamResponse.new(chunk) }
+          response = @conn.post_stream('chat/completions') do |stream|
+            stream.on_chunk { |chunk| block.call(TogetherStreamResponse.new(chunk)) }
+            stream.headers['Authorization'] = "Bearer #{@api_key}"
+            stream.headers['Accept'] = 'text/event-stream'
+            stream.body = options
           end
+
+          handle_response(response)
         end
 
         private
-
-        def prepare_stream_options(options)
-          opts = options.dup
-          opts[:stream] = true
-          opts['temperature'] = opts['temperature'].to_f if opts['temperature']
-          opts
-        end
-
-        def stream_proc(&block)
-          user_proc = proc do |chunk, _size, _total|
-            block.call(chunk)
-          end
-          to_json_stream(user_proc: user_proc)
-        end
-
-        # CODE-FROM: ruby-openai @ https://github.com/alexrudall/ruby-openai/blob/main/lib/openai/http.rb
-        # MIT License: https://github.com/alexrudall/ruby-openai/blob/main/LICENSE.md
-        def to_json_stream(user_proc:)
-          parser = EventStreamParser::Parser.new
-
-          proc do |chunk, _bytes, env|
-            if env && env.status != 200
-              raise_error = Faraday::Response::RaiseError.new
-              raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
-            end
-
-            parser.feed(chunk) do |_type, data|
-              user_proc.call(JSON.parse(data)) unless data == '[DONE]'
-            end
-          end
-        end
-
-        def try_parse_json(maybe_json)
-          JSON.parse(maybe_json)
-        rescue JSON::ParserError
-          maybe_json
-        end
-
-        # END-CODE-FROM
 
         # Handles the HTTP response and raises appropriate errors or returns the response object.
         #

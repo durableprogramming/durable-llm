@@ -2,11 +2,10 @@
 
 # This file implements the OpenAI provider for accessing OpenAI's language models through their API, providing completion, embedding, and streaming capabilities with authentication handling, error management, and response normalization. It establishes HTTP connections to OpenAI's v1 API endpoint, processes chat completions and embeddings with organization support, handles various API error responses including rate limiting and authentication errors, and includes comprehensive response classes to format OpenAI's API responses into a consistent interface. The provider supports both regular and streaming response modes using event stream parsing for real-time token streaming, and includes specialized handling for embedding responses alongside standard chat completion functionality.
 
-require 'faraday'
+require 'durable/llm/http_client'
 require 'json'
 require 'durable/llm/errors'
 require 'durable/llm/providers/base'
-require 'event_stream_parser'
 
 module Durable
   module Llm
@@ -72,11 +71,7 @@ module Durable
         def initialize(api_key: nil, organization: nil)
           super(api_key: api_key)
           @organization = organization || ENV['OPENAI_ORGANIZATION']
-          @conn = Faraday.new(url: BASE_URL) do |faraday|
-            faraday.request :json
-            faraday.response :json
-            faraday.adapter Faraday.default_adapter
-          end
+          @conn = Durable::Llm::HttpClient.new(url: BASE_URL)
         end
 
         # Performs a chat completion request to OpenAI's API.
@@ -151,73 +146,22 @@ module Durable
         # @raise [Durable::Llm::RateLimitError] If rate limit is exceeded
         # @raise [Durable::Llm::InvalidRequestError] If request parameters are invalid
         # @raise [Durable::Llm::ServerError] If OpenAI's servers encounter an error
-        def stream(options)
+        def stream(options, &block)
           options[:stream] = true
+          options['temperature'] = options['temperature'].to_f if options['temperature']
 
-          response = @conn.post('chat/completions') do |req|
-            req.headers['Authorization'] = "Bearer #{@api_key}"
-            req.headers['OpenAI-Organization'] = @organization if @organization
-            req.headers['Accept'] = 'text/event-stream'
-
-            options['temperature'] = options['temperature'].to_f if options['temperature']
-
-            req.body = options
-
-            user_proc = proc do |chunk, _size, _total|
-              yield OpenAIStreamResponse.new(chunk)
-            end
-
-            req.options.on_data = to_json_stream(user_proc: user_proc)
+          response = @conn.post_stream('chat/completions') do |stream|
+            stream.on_chunk { |chunk| block.call(OpenAIStreamResponse.new(chunk)) }
+            stream.headers['Authorization'] = "Bearer #{@api_key}"
+            stream.headers['OpenAI-Organization'] = @organization if @organization
+            stream.headers['Accept'] = 'text/event-stream'
+            stream.body = options
           end
 
           handle_response(response)
         end
 
         private
-
-        # Converts JSON stream chunks to individual data objects for processing.
-        #
-        # This method is adapted from the ruby-openai gem to handle Server-Sent Events
-        # from OpenAI's streaming API. It parses the event stream and yields individual
-        # JSON objects for each data chunk received.
-        #
-        # @param user_proc [Proc] The proc to call with each parsed JSON object
-        # @return [Proc] A proc that can be used as Faraday's on_data callback
-        # @note Adapted from ruby-openai gem under MIT License
-        # CODE-FROM: ruby-openai @ https://github.com/alexrudall/ruby-openai/blob/main/lib/openai/http.rb
-        # MIT License: https://github.com/alexrudall/ruby-openai/blob/main/LICENSE.md
-        # Given a proc, returns an outer proc that can be used to iterate over a JSON stream of chunks.
-        # For each chunk, the inner user_proc is called giving it the JSON object. The JSON object could
-        # be a data object or an error object as described in the OpenAI API documentation.
-        #
-        # @param user_proc [Proc] The inner proc to call for each JSON object in the chunk.
-        # @return [Proc] An outer proc that iterates over a raw stream, converting it to JSON.
-        def to_json_stream(user_proc:)
-          parser = EventStreamParser::Parser.new
-
-          proc do |chunk, _bytes, env|
-            if env && env.status != 200
-              raise_error = Faraday::Response::RaiseError.new
-              raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
-            end
-
-            parser.feed(chunk) do |_type, data|
-              user_proc.call(JSON.parse(data)) unless data == '[DONE]'
-            end
-          end
-        end
-
-        # Attempts to parse a string as JSON, returning the string if parsing fails.
-        #
-        # @param maybe_json [String] The string that might be JSON
-        # @return [Hash, Array, String] The parsed JSON object or the original string
-        def try_parse_json(maybe_json)
-          JSON.parse(maybe_json)
-        rescue JSON::ParserError
-          maybe_json
-        end
-
-        # END-CODE-FROM
 
         # Processes the API response and handles errors appropriately.
         #

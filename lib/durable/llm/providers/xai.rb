@@ -6,11 +6,10 @@
 # and embeddings, handles various API error responses, and includes comprehensive response classes to format
 # xAI's API responses into a consistent interface.
 
-require 'faraday'
+require 'durable/llm/http_client'
 require 'json'
 require 'durable/llm/errors'
 require 'durable/llm/providers/base'
-require 'event_stream_parser'
 
 module Durable
   module Llm
@@ -40,11 +39,7 @@ module Durable
         # @param api_key [String, nil] The API key to use, defaults to default_api_key
         def initialize(api_key: nil)
           super
-          @conn = Faraday.new(url: BASE_URL) do |faraday|
-            faraday.request :json
-            faraday.response :json
-            faraday.adapter Faraday.default_adapter
-          end
+          @conn = Durable::Llm::HttpClient.new(url: BASE_URL)
         end
 
         # Performs a chat completion request to xAI's API.
@@ -98,62 +93,21 @@ module Durable
         # @param options [Hash] The completion options including model, messages, etc.
         # @yield [XaiStreamResponse] Yields each chunk of the streaming response
         # @return [nil] Returns after streaming is complete
-        def stream(options)
+        def stream(options, &block)
           options[:stream] = true
+          options['temperature'] = options['temperature'].to_f if options['temperature']
 
-          response = @conn.post('chat/completions') do |req|
-            req.headers['Authorization'] = "Bearer #{@api_key}"
-            req.headers['Accept'] = 'text/event-stream'
-
-            options['temperature'] = options['temperature'].to_f if options['temperature']
-
-            req.body = options
-
-            user_proc = proc do |chunk, _size, _total|
-              yield XaiStreamResponse.new(chunk)
-            end
-
-            req.options.on_data = to_json_stream(user_proc: user_proc)
+          response = @conn.post_stream('chat/completions') do |stream|
+            stream.on_chunk { |chunk| block.call(XaiStreamResponse.new(chunk)) }
+            stream.headers['Authorization'] = "Bearer #{@api_key}"
+            stream.headers['Accept'] = 'text/event-stream'
+            stream.body = options
           end
 
           handle_response(response)
         end
 
         private
-
-        # CODE-FROM: ruby-openai @ https://github.com/alexrudall/ruby-openai/blob/main/lib/openai/http.rb
-        # MIT License: https://github.com/alexrudall/ruby-openai/blob/main/LICENSE.md
-        #
-        # Creates a proc for handling streaming JSON responses from xAI's API.
-        #
-        # @param user_proc [Proc] The proc to call with each parsed chunk
-        # @return [Proc] A proc that handles the streaming data
-        def to_json_stream(user_proc:)
-          parser = EventStreamParser::Parser.new
-
-          proc do |chunk, _bytes, env|
-            if env && env.status != 200
-              raise_error = Faraday::Response::RaiseError.new
-              raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
-            end
-
-            parser.feed(chunk) do |_type, data|
-              user_proc.call(JSON.parse(data)) unless data == '[DONE]'
-            end
-          end
-        end
-
-        # Attempts to parse a string as JSON, returning the original string on failure.
-        #
-        # @param maybe_json [String] The string to parse
-        # @return [Object, String] Parsed JSON object or original string
-        def try_parse_json(maybe_json)
-          JSON.parse(maybe_json)
-        rescue JSON::ParserError
-          maybe_json
-        end
-
-        # END-CODE-FROM
 
         # Handles HTTP responses from xAI's API, raising appropriate errors or returning parsed responses.
         #

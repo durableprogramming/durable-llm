@@ -2,11 +2,10 @@
 
 # This file implements the Hugging Face provider for accessing Hugging Face's inference API models.
 
-require 'faraday'
+require 'durable/llm/http_client'
 require 'json'
 require 'durable/llm/errors'
 require 'durable/llm/providers/base'
-require 'event_stream_parser'
 
 module Durable
   module Llm
@@ -26,11 +25,7 @@ module Durable
 
         def initialize(api_key: nil)
           @api_key = api_key || default_api_key
-          @conn = Faraday.new(url: BASE_URL) do |faraday|
-            faraday.request :json
-            faraday.response :json
-            faraday.adapter Faraday.default_adapter
-          end
+          @conn = Durable::Llm::HttpClient.new(url: BASE_URL)
           super()
         end
 
@@ -60,19 +55,18 @@ module Durable
         def self.stream?
           true
         end
-
-        def stream(options)
+        def stream(options, &block)
           model = options.delete(:model) || 'gpt2'
           options[:stream] = true
 
-          @conn.post("models/#{model}") do |req|
-            req.headers['Authorization'] = "Bearer #{@api_key}"
-            req.headers['Accept'] = 'text/event-stream'
-            req.body = options
-            req.options.on_data = to_json_stream(user_proc: proc { |chunk|
-              yield HuggingfaceStreamResponse.new(chunk)
-            })
+          response = @conn.post_stream("models/#{model}") do |stream|
+            stream.on_chunk { |chunk| block.call(HuggingfaceStreamResponse.new(chunk)) }
+            stream.headers['Authorization'] = "Bearer #{@api_key}"
+            stream.headers['Accept'] = 'text/event-stream'
+            stream.body = options
           end
+
+          handle_response(response)
         end
 
         def self.models
@@ -80,29 +74,6 @@ module Durable
         end
 
         private
-
-        # CODE-FROM: ruby-openai @ https://github.com/alexrudall/ruby-openai/blob/main/lib/openai/http.rb
-        # MIT License: https://github.com/alexrudall/ruby-openai/blob/main/LICENSE.md
-        def to_json_stream(user_proc:)
-          parser = EventStreamParser::Parser.new
-
-          proc do |chunk, _bytes, env|
-            if env && env.status != 200
-              raise_error = Faraday::Response::RaiseError.new
-              raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
-            end
-
-            parser.feed(chunk) do |_type, data|
-              user_proc.call(JSON.parse(data)) unless data == '[DONE]'
-            end
-          end
-        end
-
-        def try_parse_json(maybe_json)
-          JSON.parse(maybe_json)
-        rescue JSON::ParserError
-          maybe_json
-        end
 
         def handle_response(response, response_class = HuggingfaceResponse)
           return response_class.new(response.body) if (200..299).cover?(response.status)
