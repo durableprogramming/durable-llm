@@ -126,7 +126,7 @@ module Durable
       #   client = Durable::Llm.new(:openai, api_key: 'sk-...', model: 'gpt-4')
       # @example Create an Anthropic client
       #   client = Durable::Llm.new(:anthropic, api_key: 'sk-ant-...')
-      def new(provider, options = {})
+      def new(provider=nil, options = {})
         Client.new(provider, options)
       end
     end
