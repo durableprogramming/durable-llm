@@ -28,25 +28,20 @@ module Durable
 
       # Initializes a new LLM client for the specified provider
       #
-      # @param provider_name [Symbol, String] The name of the LLM provider (e.g., :openai, :anthropic)
+      # @param provider_name [Symbol, String, nil] The name of the LLM provider (e.g., :openai, :anthropic), or nil for deferred initialization
       # @param options [Hash] Configuration options for the provider and client
       # @option options [String] :model The default model to use for requests
       # @option options [String] 'model' Alternative string key for model
       # @option options [String] :api_key API key for authentication (provider-specific)
-      # @raise [ArgumentError] If provider_name is nil or empty
+      # @raise [ArgumentError] If options is not a Hash
       # @raise [NameError] If the provider class cannot be found
       # @example Initialize with OpenAI provider
       #   client = Durable::Llm::Client.new(:openai, model: 'gpt-4', api_key: 'sk-...')
       # @example Initialize with Anthropic provider
       #   client = Durable::Llm::Client.new(:anthropic, model: 'claude-3-opus-20240229')
-      def initialize(provider_name, options = {})
-        if provider_name.nil? || provider_name.to_s.strip.empty?
-          available = Durable::Llm::Providers.available_providers.join(', ')
-          raise ArgumentError,
-                "Please specify a provider name.\n\n" \
-                "Available providers: #{available}\n\n" \
-                "Example: Durable::Llm.new(:openai, model: 'gpt-4')"
-        end
+      # @example Initialize without provider (use fluent interface)
+      #   client = Durable::Llm::Client.new.with_provider(:openai).with_model('gpt-4')
+      def initialize(provider_name = nil, options = {})
         unless options.is_a?(Hash)
           raise ArgumentError,
                 "Options must be a Hash.\n" \
@@ -54,10 +49,12 @@ module Durable
         end
 
         @model = options.delete('model') || options.delete(:model) if options.key?('model') || options.key?(:model)
+        @provider_options = options
 
-        provider_class = Durable::Llm::Providers.provider_class_for(provider_name)
-
-        @provider = provider_class.new(**options)
+        if provider_name && !provider_name.to_s.strip.empty?
+          provider_class = Durable::Llm::Providers.provider_class_for(provider_name)
+          @provider = provider_class.new(**@provider_options)
+        end
       end
 
       # Returns the default parameters to merge with request options
@@ -137,6 +134,8 @@ module Durable
       #     temperature: 0.7
       #   )
       def completion(params = {})
+        ensure_provider!
+
         unless params.is_a?(Hash)
           raise ArgumentError,
                 "Parameters must be a Hash.\n" \
@@ -158,6 +157,8 @@ module Durable
       # @raise [Durable::Llm::APIError] If the API request fails
       # @see #completion
       def chat(params = {})
+        ensure_provider!
+
         unless params.is_a?(Hash)
           raise ArgumentError,
                 "Parameters must be a Hash.\n" \
@@ -183,6 +184,8 @@ module Durable
       #     input: 'Hello, world!'
       #   )
       def embed(params = {})
+        ensure_provider!
+
         unless params.is_a?(Hash)
           raise ArgumentError,
                 "Parameters must be a Hash.\n" \
@@ -218,6 +221,8 @@ module Durable
       #     print chunk.choices.first.delta.content
       #   end
       def stream(params = {}, &block)
+        ensure_provider!
+
         unless params.is_a?(Hash)
           raise ArgumentError,
                 "Parameters must be a Hash.\n" \
@@ -243,7 +248,30 @@ module Durable
       #
       # @return [Boolean] True if streaming is supported, false otherwise
       def stream?
+        return false unless @provider
+
         @provider.stream?
+      end
+
+      # Sets the provider for the client (fluent interface)
+      #
+      # @param provider_name [Symbol, String] The name of the LLM provider
+      # @return [Client] Returns self for method chaining
+      # @example Fluent provider setting
+      #   client = Durable::Llm::Client.new
+      #   client.with_provider(:openai).with_model('gpt-4').complete('Hello!')
+      def with_provider(provider_name)
+        if provider_name.nil? || provider_name.to_s.strip.empty?
+          available = Durable::Llm::Providers.available_providers.join(', ')
+          raise ArgumentError,
+                "Please specify a provider name.\n\n" \
+                "Available providers: #{available}\n\n" \
+                "Example: client.with_provider(:openai)"
+        end
+
+        provider_class = Durable::Llm::Providers.provider_class_for(provider_name)
+        @provider = provider_class.new(**(@provider_options || {}))
+        self
       end
 
       # Sets the model for subsequent requests (fluent interface)
@@ -280,6 +308,62 @@ module Durable
         self
       end
 
+      # Sets tools for the next request (fluent interface)
+      #
+      # @param tools [Array<Hash>] Array of tool definitions
+      # @return [Client] Returns self for method chaining
+      # @example Fluent tools setting
+      #   tools = [{ type: 'function', function: { name: 'get_weather', ... } }]
+      #   client.with_tools(tools).complete('What is the weather?')
+      def with_tools(tools)
+        @next_tools = tools
+        self
+      end
+
+      # Sets tool choice for the next request (fluent interface)
+      #
+      # @param choice [String, Hash] Tool choice setting ('auto', 'none', or specific tool)
+      # @return [Client] Returns self for method chaining
+      # @example Fluent tool choice setting
+      #   client.with_tool_choice('auto').with_tools(tools).complete('Help me')
+      def with_tool_choice(choice)
+        @next_tool_choice = choice
+        self
+      end
+
+      # Sets system message for the next request (fluent interface)
+      #
+      # @param message [String] System message content
+      # @return [Client] Returns self for method chaining
+      # @example Fluent system message setting
+      #   client.with_system('You are a helpful assistant').complete('Hello')
+      def with_system(message)
+        @next_system = message
+        self
+      end
+
+      # Sets top_p for the next request (fluent interface)
+      #
+      # @param value [Float] Top-p value (0.0-1.0)
+      # @return [Client] Returns self for method chaining
+      # @example Fluent top_p setting
+      #   client.with_top_p(0.9).complete('Generate text')
+      def with_top_p(value)
+        @next_top_p = value
+        self
+      end
+
+      # Sets stop sequences for the next request (fluent interface)
+      #
+      # @param sequences [Array<String>, String] Stop sequences
+      # @return [Client] Returns self for method chaining
+      # @example Fluent stop sequences setting
+      #   client.with_stop(['\n\n', 'END']).complete('Generate text')
+      def with_stop(sequences)
+        @next_stop = sequences
+        self
+      end
+
       # Creates a copy of the client with different configuration
       #
       # @param options [Hash] New configuration options
@@ -301,12 +385,39 @@ module Durable
         # Apply fluent interface settings if present
         params[:temperature] = @next_temperature if @next_temperature
         params[:max_tokens] = @next_max_tokens if @next_max_tokens
+        params[:tools] = @next_tools if @next_tools
+        params[:tool_choice] = @next_tool_choice if @next_tool_choice
+        params[:top_p] = @next_top_p if @next_top_p
+        params[:stop] = @next_stop if @next_stop
+
+        # Handle system message
+        if @next_system
+          params[:system] = @next_system
+        end
 
         # Clear one-time settings after use
         @next_temperature = nil
         @next_max_tokens = nil
+        @next_tools = nil
+        @next_tool_choice = nil
+        @next_system = nil
+        @next_top_p = nil
+        @next_stop = nil
 
         params
+      end
+
+      # Ensures provider is initialized before making requests
+      #
+      # @raise [RuntimeError] If provider is not set
+      def ensure_provider!
+        return if @provider
+
+        available = Durable::Llm::Providers.available_providers.join(', ')
+        raise RuntimeError,
+              "No provider set. Please set a provider first.\n\n" \
+              "Available providers: #{available}\n\n" \
+              "Example: client.with_provider(:openai).complete('Hello')"
       end
     end
   end

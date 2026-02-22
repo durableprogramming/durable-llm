@@ -252,17 +252,20 @@ module Durable
 
         # Represents a message in an OpenAI chat completion.
         #
-        # Messages have a role (system, user, assistant) and content text.
+        # Messages have a role (system, user, assistant) and content text,
+        # and may include tool calls or function calls.
         class OpenAIMessage
-          attr_reader :role, :content
+          attr_reader :role, :content, :tool_calls, :function_call
 
           def initialize(message)
             @role = message['role']
             @content = message['content']
+            @tool_calls = message['tool_calls']
+            @function_call = message['function_call']
           end
 
           def to_s
-            @content
+            @content || ''
           end
         end
 

@@ -259,17 +259,44 @@ module Durable
 
         # Represents a message in an Anthropic conversation.
         #
-        # Messages have a role (user, assistant) and content composed of text blocks.
+        # Messages have a role (user, assistant) and content composed of text blocks
+        # and potentially tool use blocks.
         class AnthropicMessage
-          attr_reader :role, :content
+          attr_reader :role, :content, :tool_calls, :raw_content
 
           def initialize(response)
             @role = response['role']
-            @content = response['content']&.map { |block| block['text'] }&.join(' ') || ''
+            @raw_content = response['content'] || []
+            @content = extract_text_content
+            @tool_calls = extract_tool_calls
           end
 
           def to_s
             @content
+          end
+
+          private
+
+          def extract_text_content
+            @raw_content
+              .select { |block| block['type'] == 'text' }
+              .map { |block| block['text'] }
+              .join(' ')
+          end
+
+          def extract_tool_calls
+            @raw_content
+              .select { |block| block['type'] == 'tool_use' }
+              .map do |block|
+                {
+                  'id' => block['id'],
+                  'type' => 'function',
+                  'function' => {
+                    'name' => block['name'],
+                    'arguments' => JSON.generate(block['input'])
+                  }
+                }
+              end
           end
         end
 
